@@ -225,7 +225,7 @@ async function analytics(el, current) {
   ${panel("Player decision patterns", bars(a.decisions.map(d => [`${cap(d.type)}: ${d.choice}`, d.count])))}
   ${panel("Joint treaty talks", bars(Object.entries(a.joint_outcomes).map(([k, v]) => [cap(k), v])))}
   ${panel("Treaty stability", bars(a.treaties.map(t => [nation(t.country).name, t.stability, `${t.status}, ${t.aircraft} aircraft`]), { max: 100 }))}
-  ${panel("Joint air rank changes", a.rank_history.map(r => `<div>Day ${r.day}: rank ${r.previous} → ${r.new} (capability ${r.rating})</div>`).join("") || bars([]))}
+  ${panel("Joint air rank changes", a.rank_history.map(r => `<div>Day ${r.day}: rank ${r.previous} → ${r.new} (actual strength ${r.rating})</div>`).join("") || bars([]))}
   ${panel("How missions were resolved", bars(Object.entries(a.by_mode).map(([k, v]) => [cap(k), v])))}</div>
   <div class="panel" style="margin-top:14px"><h3>Relationship with Lumeris over time (−100 to 100)</h3><div class="grid">${Object.entries(trend).map(([c, pts]) => `<div>${esc(nation(c).name)} <span class="dim">now ${pts.at(-1).value}</span>${line(pts)}</div>`).join("") || bars([])}</div></div>`;
 }

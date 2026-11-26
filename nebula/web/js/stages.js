@@ -8,7 +8,8 @@ const label = (key, id) => S.world.terms[key][1].find(o => o[0] === id)[1];
 const line = (id, text) => { const p = S.world.characters[id]; return `<div class="speech">${face(id, 88)}<div><div class="gold small">${esc(nation(p.country).name.toUpperCase())} · ${esc(p.role.toUpperCase())}</div><b>${esc(p.name)}</b><p>${esc(text)}</p></div></div>`; };
 
 export const airChart = () => `<div class="ranks">${G().air_ranking.map((r, i) => `<div class="rank ${r.country === "lumeris" ? "mine" : ""}"><b>${i + 1}</b>${flag(nation(r.country))}<span>${esc(r.country === "lumeris" ? "Lumeris joint command" : nation(r.country).name)}</span><span class="small">${r.rating}</span></div>`).join("")}</div>
-<p class="small dim">Air capability: the sum of each command's aircraft ratings (speed, agility, armour, radar). Aircraft lent by treaty count once, under joint command. This is separate from the national military ranking.</p>`;
+<p>Actual joint air strength: <b class="gold">${G().joint_strength}</b><br>Competitive rank: <b class="gold">${10 - G().signed_stages} of 10</b> · stage progression ${G().signed_stages}/9 treaties</p>
+<p class="small dim">Rank rises one place for each completed stage with a signed treaty. The numbers are actual calculated strength (speed, agility, armour and radar of the aircraft under each command), so they need not follow rank order. This is separate from the national military ranking.</p>`;
 
 function currentStage() {
   const open = G().stages.find(s => !G().stage_reports[s.stage]);

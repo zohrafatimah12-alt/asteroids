@@ -112,7 +112,8 @@ def view(campaign_id: int, state: dict) -> dict:
         "history": state.get("history", []), "tactics": state.get("tactics", []),
         "philosophy": state.get("philosophy"),
         "air_ranking": stages.air_ranking(state), "joint": state.get("joint", {}),
-        "talks": state.get("talks", {}), "stage_reports": state.get("stage_reports", {}),
+        "talks": state.get("talks", {}), "stage_reports": stages.reports(state),
+        "joint_strength": stages.air_ratings(state)["lumeris"], "signed_stages": stages.signed_stages(state),
         "stages": [{"stage": n, "country": c, "complete": stages.stage_complete(state, n),
                     "done": sum(str(x) in state["completed"] for x in range(n * 10 - 9, n * 10 + 1)),
                     }

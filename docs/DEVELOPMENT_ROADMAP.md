@@ -1,7 +1,7 @@
 # Roadmap and known limitations
 
 ## Limitations today
-- **Joint ranking pace:** lent aircraft accumulate, so with moderate treaties Lumeris climbs faster than one place per stage after Stage 2. In the scripted campaign it was 5th after Stage 3 and 1st after Stage 6. Inventories (`data/forces.py`) and term burdens (`data/treaty.py`) have not been tuned with players.
+- **Joint ranking:** the competitive rank is stage progression, not a strength ordering, so strength numbers on the ladder need not follow rank order. A later withdrawal or expiry lowers actual strength but keeps the earned place. National military scores are fixed data; nothing in play changes them yet.
 - **Treaties:** proposals are menu choices with templated objections; the player cannot write a custom counter. Command authority changes only acceptance. Aircraft basing locations, weapons stocks and army cooperation are not modelled. "Ammunition" supply is delivered as materials.
 - **Peaceful routes** exist for Level 1 and for interception, strike and major-battle levels against a stage opponent.
 - **Old saves:** campaigns started before the stage reorder keep their completed level numbers, which now refer to different missions. Start a new campaign.
@@ -21,7 +21,7 @@
 - Local, single-player; no PostgreSQL port.
 
 ## Next
-0. Play-test and tune treaty burdens and joint-ranking pace.
+0. Play-test and tune treaty burdens and aircraft inventories.
 1. Human play-test and retune difficulty, mission length and economy.
 2. Unique choices and consequences for key story levels; branching missions.
 3. Enemy aircraft that use their nation's own airframes and abilities.

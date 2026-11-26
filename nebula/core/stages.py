@@ -48,15 +48,37 @@ def air_ratings(state) -> dict:
     return {c: round(v) for c, v in result.items()}
 
 
-def air_ranking(state) -> list[dict]:
-    ratings = air_ratings(state)
-    # Lumeris must strictly exceed a nation to pass it.
-    order = sorted(ratings, key=lambda c: (-ratings[c], c == HOME))
-    return [{"country": c, "rating": ratings[c]} for c in order]
+def signed_stages(state) -> int:
+    """Stages whose ten missions are done and whose treaty was signed (each counts once)."""
+    return sum(bool(r["signed"]) for r in state.get("stage_reports", {}).values())
 
 
 def joint_rank(state) -> int:
-    return next(i for i, r in enumerate(air_ranking(state), 1) if r["country"] == HOME)
+    """Competitive position: one place per stage treaty. It never alters strength."""
+    return 10 - signed_stages(state)
+
+
+def air_ranking(state) -> list[dict]:
+    """The competitive ladder, each entry carrying its actual calculated strength."""
+    ratings = air_ratings(state)
+    order = STAGE_OPPONENTS[::-1]
+    order.insert(joint_rank(state) - 1, HOME)
+    return [{"country": c, "rating": ratings[c]} for c in order]
+
+
+def reports(state) -> dict:
+    """Saved stage reports, with ranks shown as one step per signed treaty.
+
+    Reports written by the earlier strength-based ranking are recalculated for
+    display only; the saved records are left as they were.
+    """
+    saved = state.get("stage_reports", {})
+    shown, signed = {}, 0
+    for key, r in sorted(saved.items(), key=lambda item: (item[1]["day"], item[1]["stage"])):
+        previous = 10 - signed
+        signed += bool(r["signed"])
+        shown[key] = r if r.get("stepped") else {**r, "previous_rank": previous, "new_rank": 10 - signed}
+    return shown
 
 
 def track_rank(state):
@@ -205,9 +227,10 @@ def _contribution(country, share: str) -> list[str]:
 
 def _report(state, stage, country, previous, **extra):
     report = {"stage": stage, "country": country, "day": state["day"], "previous_rank": previous,
-              "new_rank": joint_rank(state), "unlocked": f"Stage {stage + 1}: levels {stage * 10 + 1}–{stage * 10 + 10}",
+              "stepped": True, "unlocked": f"Stage {stage + 1}: levels {stage * 10 + 1}–{stage * 10 + 10}",
               **extra}
     state.setdefault("stage_reports", {})[str(stage)] = report
+    report["new_rank"] = joint_rank(state)  # counted once the report is on record
     state["unlocked"] = max(state["unlocked"], stage * 10 + 1)
     state["last_report"] = stage
 

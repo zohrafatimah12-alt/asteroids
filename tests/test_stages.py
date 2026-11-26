@@ -83,12 +83,62 @@ def test_only_agreed_share_is_transferred_and_nation_stays_sovereign():
     assert "zorvania" in commander.national_ranking()
 
 
-def test_rank_rises_only_when_capability_exceeds_rival():
+def test_each_signed_stage_advances_exactly_one_place_at_any_share():
+    for share in ("20", "40"):
+        state = staged(trust=95, relation=80)
+        for stage in range(1, 10):
+            state["completed"] = {str(n): "flown" for n in range(1, stage * 10 + 1)}
+            country = stages.STAGE_OPPONENTS[stage - 1]
+            state["trust"][country], state["relations"]["|".join(sorted(("lumeris", country)))] = 100, 100
+            before = stages.joint_rank(state)
+            stages.propose(state, stage, {**DEFAULT, "aircraft": share})
+            assert stages.joint_rank(state) == before - 1 == 10 - stage
+            report = state["stage_reports"][str(stage)]
+            assert (report["previous_rank"], report["new_rank"]) == (before, before - 1)
+            ladder = [r["country"] for r in stages.air_ranking(state)]
+            assert ladder.index("lumeris") + 1 == 10 - stage
+
+
+def test_rank_never_changes_strength_or_national_ranking():
     small, large = signed(aircraft="20"), signed(aircraft="40")
-    assert stages.joint_rank(small) == 10 and stages.joint_rank(large) == 9
-    assert large["stage_reports"]["1"]["previous_rank"] == 10
-    assert large["stage_reports"]["1"]["new_rank"] == 9
+    assert stages.joint_rank(small) == stages.joint_rank(large) == 9
+    assert stages.air_ratings(small)["lumeris"] < stages.air_ratings(large)["lumeris"]
+    expected = sum(stages.rating(stages.stats(p)) for p in large["fleet"])
+    assert stages.air_ratings(large)["lumeris"] == round(expected)
     assert commander.national_ranking()[9] == "lumeris"
+
+
+def test_failed_talks_and_purchases_do_not_advance_rank():
+    countered = staged(trust=40, relation=0)
+    stages.propose(countered, 1, DEFAULT)
+    rejected = staged(trust=0, relation=-80)
+    stages.propose(rejected, 1, {**DEFAULT, "command": "lumeris", "aircraft": "40", "withdrawal": "none"})
+    assert rejected["talks"]["zorvania"]["outcome"] == "reject"
+    rich = staged(done=9)
+    rich["fleet"] += [dict(rich["fleet"][0], uid=100 + n) for n in range(8)]
+    assert [stages.joint_rank(s) for s in (countered, rejected, rich)] == [10, 10, 10]
+    stages.accept_counter(countered, 1)
+    assert stages.joint_rank(countered) == 9
+
+
+def test_postponed_then_signed_and_renewed_treaty_counts_once():
+    state = staged(trust=95, relation=80)
+    stages.postpone(state, 1)
+    assert stages.joint_rank(state) == 10
+    stages.propose(state, 1, {**DEFAULT, "duration": "60"})
+    assert stages.joint_rank(state) == 9
+    world.advance_day(state, 61)
+    state["trust"]["zorvania"], state["relations"]["lumeris|zorvania"] = 95, 80
+    stages.propose(state, 1, DEFAULT)
+    assert stages.joint_rank(state) == 9
+
+
+def test_old_save_reports_display_single_steps_without_being_rewritten():
+    old = {"stage_reports": {str(n): {"stage": n, "day": n, "signed": True, "previous_rank": a, "new_rank": b}
+                             for n, a, b in ((1, 10, 9), (2, 9, 8), (3, 8, 5))}}
+    assert stages.joint_rank(old) == 7
+    assert [r["new_rank"] for r in stages.reports(old).values()] == [9, 8, 7]
+    assert old["stage_reports"]["3"]["new_rank"] == 5
 
 
 def test_total_capability_is_conserved():
