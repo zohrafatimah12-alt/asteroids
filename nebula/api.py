@@ -32,7 +32,22 @@ app = FastAPI(title="NEBULA", version="0.1.0")
 # Hosts this server answers to. Local play needs no setting; deployments list their
 # hostname in NEBULA_HOSTS (comma-separated). This blocks DNS-rebinding attacks.
 _HOSTS = ["127.0.0.1", "localhost", "testserver"] + [h.strip() for h in os.environ.get("NEBULA_HOSTS", "").split(",") if h.strip()]
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=_HOSTS)
+class _HostCheck(TrustedHostMiddleware):
+    """Host validation for every route except the health check, which platforms call
+    from addresses and names we cannot list in advance."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"] == "/healthz":
+            return await self.app(scope, receive, send)
+        return await super().__call__(scope, receive, send)
+
+
+app.add_middleware(_HostCheck, allowed_hosts=_HOSTS)
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 # The Vercel site is a different origin; only the origins listed here may call the API.
 _ORIGINS = [o.strip() for o in os.environ.get("NEBULA_CORS_ORIGINS", "").split(",") if o.strip()]
 if _ORIGINS:

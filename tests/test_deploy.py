@@ -33,3 +33,18 @@ def test_combat_can_be_disabled_without_breaking_command(monkeypatch):
 def test_wsgi_entry_point_imports():
     from nebula.wsgi import application
     assert callable(application)
+
+
+def test_healthz_answers_for_any_host_but_other_routes_still_check_hosts(monkeypatch):
+    from nebula import api
+    importlib.reload(api)
+    client = TestClient(api.app)
+    assert client.get("/healthz", headers={"host": "unknown.example"}).json() == {"status": "ok"}
+    assert client.get("/healthz").status_code == 200
+    assert client.get("/api/world", headers={"host": "unknown.example"}).status_code == 400
+    monkeypatch.setenv("NEBULA_HOSTS", "my-app.ethiodeploy.example")
+    importlib.reload(api)
+    client = TestClient(api.app)
+    assert client.get("/api/world", headers={"host": "my-app.ethiodeploy.example"}).status_code == 200
+    monkeypatch.delenv("NEBULA_HOSTS")
+    importlib.reload(api)
