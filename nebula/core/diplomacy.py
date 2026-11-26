@@ -73,6 +73,30 @@ def propose(state, country: str, kind: str, sweetener: int = 0) -> tuple[bool, s
     return True, f"{name} signed the {label.lower()}."
 
 
+def end_alliance(state, country: str) -> str:
+    """Formally leave a military alliance and any joint defence agreement."""
+    _check_country(state, country)
+    if not agreements.is_ally(state, country):
+        raise RuleError("You have no alliance with that nation")
+    reason = "formally ended by you"
+    held = agreements.current(state, country)
+    if held["alliance"]:
+        state["treaties"][country].remove("alliance")
+        agreements.record(state, country, "alliance", "broken", reason)
+    if held["joint_defence"]:
+        treaty = state["joint"][country]
+        treaty.update(status="ended", aircraft=[], stability=0)
+        treaty["log"] = (treaty["log"] + [f"Day {state['day']}: {reason}"])[-8:]
+        state["fleet"] = [p for p in state["fleet"] if p.get("owner") != country]
+        agreements.record(state, country, "joint_defence", "broken", reason)
+        agreements.record(state, country, "joint_command", "broken", reason)
+    change_relation(state, country, -15, reason="alliance_ended")
+    change_trust(state, country, -15)
+    change_reputation(state, -3)
+    log(state, "alliance_ended", country=country)
+    return f"The alliance with {COUNTRIES[country]['name']} has formally ended."
+
+
 def send_aid(state, country: str) -> str:
     _check_country(state, country)
     if country in state.get("wars", {}):

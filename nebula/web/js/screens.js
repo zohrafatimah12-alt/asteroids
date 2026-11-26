@@ -82,7 +82,8 @@ function diplomacy(el) {
   <div class="panel"><h3>Negotiate (takes one day)</h3>${id === G().rival ? `<p class="bad">${esc(c.name)} is your current opponent. No treaties until you finish all ten missions of this stage. Messages and aid can still build trust.</p>` : ""}${Object.entries(S.world.treaties).map(([k, [label, , need]]) => {
     const signed = c.treaties.includes(k), rival = id === G().rival, blocked = rival || (need && !c.treaties.includes(need));
     return `<div class="row between"><span>${esc(label)} <span class="small dim">${signed ? "signed" : rival ? "current opponent" : blocked ? "needs " + need + " first" : c.outlook[k]}</span></span><span>${actionButton("Propose", "treaty", { country: id, kind: k }, signed || blocked)} ${actionButton("+100c offer", "treaty", { country: id, kind: k, offer: 100 }, signed || blocked)}</span></div>`;
-  }).join("")}<hr style="border-color:var(--line)"><div class="row">${actionButton("Send aid (80c, 20m)", "aid", { country: id })}${actionButton("Apply pressure", "pressure", { country: id })}</div>
+  }).join("")}<hr style="border-color:var(--line)">${c.ally ? `<details><summary>End alliance…</summary><p class="small">War with ${esc(c.name)} is impossible while you are allies. Ending it takes a day, costs 15 relations, 15 trust and 3 reputation, ends any joint defence agreement and returns its aircraft.</p>${actionButton("Confirm: end alliance", "end_alliance", { country: id })}</details>` : ""}
+  <div class="row">${actionButton("Send aid (80c, 20m)", "aid", { country: id })}${actionButton("Apply pressure", "pressure", { country: id })}</div>
   <p class="small dim">Peace unlocks peaceful mission outcomes. Trade raises daily income. Intelligence allows exchanges. Alliances unlock their aircraft, add a wingman and count toward the Great Union.</p></div></div>
   <div class="panel" style="margin-top:14px"><h3>Territorial disputes</h3><table>${disputes}</table></div>`;
   return () => bindPicker(el);

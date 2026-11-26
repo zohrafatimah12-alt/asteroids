@@ -130,6 +130,8 @@ def escalation(state, incident) -> str | None:
 
 def blocked_reason(state, incident, choice) -> str | None:
     country = incident["country"]
+    if choice == "military" and agreements.is_ally(state, country):
+        return "Your ally: formally end the alliance in Diplomacy first"
     if choice == "military" and is_allied(state, incident) \
             and not (incident["evidence"] and incident.get("failed_talks", 0)):
         return "A partner: investigate and attempt negotiation first"
@@ -205,6 +207,9 @@ def _resolve(state, incident, choice) -> str:
                     + ("investigate and " if not incident["evidence"] else "") + "decide your next step.")
         elif allied and outcome == "war" and not incident["evidence"]:
             outcome = "suspended"  # a partner is never fought before an investigation
+    ally = agreements.is_ally(state, country)
+    if ally and outcome in ("confrontation", "war"):
+        outcome = "suspended"  # allies never fight while the alliance stands
     effects = []
     if outcome == "peace":
         change_relation(state, country, 10, reason="incident_peace")
@@ -228,10 +233,12 @@ def _resolve(state, incident, choice) -> str:
     elif outcome == "suspended":
         change_relation(state, country, -12, reason="incident_suspended")
         change_trust(state, country, -10)
-        lost = [t for t in state["treaties"][country] if t != "peace"]
+        # Cooperation can be suspended, but an alliance only ends formally.
+        keep = ("peace", "alliance") if ally else ("peace",)
+        lost = [t for t in state["treaties"][country] if t not in keep]
         for kind in lost:
             agreements.record(state, country, kind, "suspended", f"{incident['title']} ({choice})")
-        state["treaties"][country] = [t for t in state["treaties"][country] if t == "peace"]
+        state["treaties"][country] = [t for t in state["treaties"][country] if t in keep]
         stages.strain(state, country, 35, "cooperation suspended after an incident")
         effects.append("relations -12, trust -10, agreements suspended: " + (", ".join(lost) or "none held"))
     elif outcome == "confrontation":
@@ -260,6 +267,8 @@ def _lose(state, share: float, damage: int, reason: str) -> str:
 
 
 def start_war(state, country: str, rng, cause: str) -> list[str]:
+    if agreements.is_ally(state, country):
+        raise RuleError("War with an ally is not possible until the alliance has formally ended")
     held = agreements.current(state, country)
     for kind in state["treaties"][country]:
         agreements.record(state, country, kind, "broken", cause)

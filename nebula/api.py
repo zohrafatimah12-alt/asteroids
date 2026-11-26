@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from nebula.analytics.pipeline import metrics
-from nebula.core import commander, conflict, db, diplomacy, endings, hangar, intel, missions, stages, world
+from nebula.core import agreements, commander, conflict, db, diplomacy, endings, hangar, intel, missions, stages, world
 from nebula.core.state import HOME, RuleError, home, new_state, relation, stats
 from nebula.data.aircraft import ABILITIES, AIRCRAFT, UPGRADES
 from nebula.data.characters import AIR_CHIEFS, CHARACTERS, LEADERS, public as public_character
@@ -89,6 +89,7 @@ def country_profile(state, cid: str) -> dict:
         c["relation"] = relation(state, cid)
         c["trust"] = state["trust"][cid]
         c["treaties"] = state["treaties"][cid]
+        c["ally"] = agreements.is_ally(state, cid)
         c["outlook"] = {k: diplomacy.outlook(state, cid, k) for k in diplomacy.TREATIES}
     return c
 
@@ -194,6 +195,7 @@ def get_mission(cid: int, level: int):
 
 ACTIONS = {
     "treaty": lambda s, a: diplomacy.propose(s, a.country, a.kind, a.offer)[1],
+    "end_alliance": lambda s, a: diplomacy.end_alliance(s, a.country),
     "aid": lambda s, a: diplomacy.send_aid(s, a.country),
     "pressure": lambda s, a: diplomacy.pressure(s, a.country)[1],
     "dispute": lambda s, a: diplomacy.negotiate_dispute(s, a.subject, a.kind)[1],
@@ -216,7 +218,7 @@ ACTIONS = {
     "ceasefire": lambda s, a: conflict.ceasefire(s, a.country),
     "ending": lambda s, a: f"Ending reached: {endings.ENDINGS[endings.conclude(s, a.kind)][0]}",
 }
-DAY_ACTIONS = {"incident", "ceasefire", "joint_propose", "treaty", "aid", "pressure", "dispute", "intel"}  # each takes a day
+DAY_ACTIONS = {"end_alliance", "incident", "ceasefire", "joint_propose", "treaty", "aid", "pressure", "dispute", "intel"}  # each takes a day
 
 
 @app.post("/api/campaigns/{cid}/actions")

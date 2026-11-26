@@ -18,13 +18,20 @@ def current(state, country: str) -> dict:
     signed = state["treaties"].get(country, [])
     joint = state.get("joint", {}).get(country, {})
     return {"trade": "trade" in signed, "peace": "peace" in signed, "alliance": "alliance" in signed,
-            "joint_defence": joint.get("status") == "active" and joint["terms"]["defence"] == "mutual"}
+            # A restricted treaty is suspended, not formally ended.
+            "joint_defence": joint.get("status") in ("active", "restricted") and joint["terms"]["defence"] == "mutual"}
 
 
 def protected(state, country: str) -> bool:
     """Bound to the player by peace, alliance or joint defence."""
     held = current(state, country)
     return any(held[k] for k in PROTECTIVE)
+
+
+def is_ally(state, country: str) -> bool:
+    """Military alliance or joint defence: no war until it has formally ended."""
+    held = current(state, country)
+    return held["alliance"] or held["joint_defence"]
 
 
 def stand_down(state, country: str) -> str | None:

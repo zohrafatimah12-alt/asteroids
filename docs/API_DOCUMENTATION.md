@@ -25,6 +25,7 @@ Body: `{"type": ..., plus the fields below}`
 |---|---|
 | `treaty` | country, kind (peace, trade, intelligence, alliance), offer (credits, optional) |
 | `aid`, `pressure` | country |
+| `end_alliance` | country (takes one day) |
 | `dispute` | subject (dispute id), kind (shared, arbitrate, concede) |
 | `intel` | country, subject (strength, weaknesses, aircraft, bases), kind (signals, reconnaissance, exchange) |
 | `service` | uid, kind (refuel, rearm, repair, all) |

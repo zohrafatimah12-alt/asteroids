@@ -61,7 +61,7 @@ def test_mission_generation_respects_agreements_and_history():
 def test_ally_requires_investigation_and_negotiation_before_force():
     stalled = 0
     for seed in range(60):
-        state = campaign(trust=5, relation=-70, treaties=["alliance", "trade"], seed=seed)
+        state = campaign(trust=5, relation=-70, treaties=["peace", "trade"], seed=seed)
         conflict.trigger(state, ZV)
         assert blocked(state)
         conflict.respond(state, "negotiate")
@@ -156,3 +156,45 @@ def test_no_treaty_with_the_current_opponent_until_its_stage_is_done(nation, foe
     state["completed"] = {str(n): "x" for n in range(1, 11)}
     assert stages.current_rival(state) != foe
     assert diplomacy.propose(state, foe, "peace")[0]
+
+
+def test_allies_can_never_fight_whatever_happens():
+    for seed in range(60):
+        state = campaign(trust=0, relation=-90, treaties=["peace", "alliance", "trade"], seed=seed)
+        conflict.trigger(state, ZV)
+        for choice in ("negotiate", "investigate", "negotiate"):
+            if conflict.open_incident(state):
+                assert blocked(state)
+                conflict.respond(state, choice)
+        world.advance_day(state, 12)
+        assert not state.get("wars")
+        assert "alliance" in state["treaties"][ZV]
+        assert all(i["outcome"] != "confrontation" for i in state["incidents"])
+
+
+def test_joint_defence_partner_is_an_ally_even_when_restricted():
+    state = campaign()
+    state["joint"] = {ZV: {"status": "restricted", "terms": {**DEFAULT, "defence": "mutual"}}}
+    conflict.trigger(state, ZV)
+    assert "ally" in blocked(state)
+    with pytest.raises(RuleError):
+        conflict.start_war(state, ZV, None, "test")
+
+
+def test_formally_ending_the_alliance_has_costs_and_lifts_the_block():
+    state = campaign(trust=90, relation=70)
+    state["completed"] = {str(n): "x" for n in range(1, 11)}
+    diplomacy.propose(state, ZV, "peace")
+    state["treaties"][ZV].append("alliance")
+    stages.propose(state, 1, DEFAULT)
+    assert agreements.is_ally(state, ZV) and any(p.get("owner") == ZV for p in state["fleet"])
+    rank, trust = stages.joint_rank(state), state["trust"][ZV]
+    diplomacy.end_alliance(state, ZV)
+    assert not agreements.is_ally(state, ZV) and state["trust"][ZV] == trust - 15
+    assert not any(p.get("owner") == ZV for p in state["fleet"]) and stages.joint_rank(state) == rank
+    assert "peace" in state["treaties"][ZV]
+    assert any(e["reason"] == "formally ended by you" for e in state["agreement_log"])
+    with pytest.raises(RuleError):
+        diplomacy.end_alliance(state, ZV)
+    conflict.trigger(state, ZV)
+    assert "formally end" not in (blocked(state) or "")
