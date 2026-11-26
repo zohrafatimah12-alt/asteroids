@@ -2,7 +2,7 @@
 
 import random
 
-from nebula.core import conflict, stages
+from nebula.core import agreements, conflict, stages
 from nebula.core.intel import add_intel
 from nebula.core.state import (RuleError, home as home_of, change_relation, change_reputation,
                                change_trust, find_plane, gain, log, record, relation, spend, stats)
@@ -136,14 +136,31 @@ def mission_for(state, level: int) -> dict:
     """A campaign level, or (101+) the next sortie of an active war."""
     if level > 100:
         return conflict.war_mission(state, level)
-    return definition(level, home_of(state))
+    return _respect_agreements(state, definition(level, home_of(state)))
+
+
+def _respect_agreements(state, mission: dict) -> dict:
+    """Never cast a partner (or a fresh ceasefire) as the enemy; the sortie stays playable."""
+    nation = mission["opponent"]
+    reason = nation and agreements.stand_down(state, nation)
+    if not reason:
+        return mission
+    name = COUNTRIES[nation]["name"]
+    mission = {**mission, "opponent": None, "ally": nation}
+    if mission["antagonist"] or mission["level"] == 1:
+        mission.update(
+            antagonist=None, stood_down=mission["antagonist"], title=f"Unmarked Raiders · {name} frontier",
+            story=f"{name} is not your enemy: you share {reason}. Unregistered raiders are operating "
+                  f"near {mission['location']}. Deal with them.")
+    return mission
 
 
 def peaceful_option(state, mission) -> dict | None:
-    foe = mission["antagonist"]
+    foe = mission["antagonist"] or mission.get("stood_down")
     if not foe or foe in state.get("wars", {}):
         return None
-    available = "peace" in state["treaties"][foe] or (relation(state, foe) >= 15 and state["trust"][foe] >= 45)
+    # A partner can always be asked to help settle it without a shot.
+    available = bool(mission.get("stood_down")) or "peace" in state["treaties"][foe] or (relation(state, foe) >= 15 and state["trust"][foe] >= 45)
     return {"country": foe, "available": available,
             "requirement": f"A peace treaty with {COUNTRIES[foe]['name']}, or relations 15+ and trust 45+"}
 

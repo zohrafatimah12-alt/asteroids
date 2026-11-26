@@ -30,12 +30,12 @@ def test_negotiation_depends_on_relationship_and_is_not_guaranteed():
     assert outcomes(95, 70, "envoy") == {"peace"}
     assert len(outcomes(42, -5, "negotiate")) >= 3
     poor = outcomes(5, -70, "negotiate")
-    assert "peace" not in poor and "war" in poor
+    assert "peace" not in poor and "war" not in poor and None in poor  # first failure stalls
 
 
 def test_war_has_consequences_and_playable_missions():
     state = tense(30, -20)
-    state["treaties"]["zorvania"] = ["peace", "trade"]
+    state["treaties"]["zorvania"] = ["trade"]
     credits, trust = state["resources"]["credits"], state["trust"]["zorvania"]
     conflict.respond(state, "military")
     war = state["wars"]["zorvania"]

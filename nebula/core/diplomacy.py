@@ -2,7 +2,7 @@
 
 import random
 
-from nebula.core import stages
+from nebula.core import agreements, stages
 from nebula.core.state import (RuleError, foreign, home, change_relation, change_reputation,
                                change_trust, gain, log, record, relation, spend)
 from nebula.data.countries import COUNTRIES
@@ -57,6 +57,7 @@ def propose(state, country: str, kind: str, sweetener: int = 0) -> tuple[bool, s
         change_trust(state, country, -2)
         return False, f"{name} declined the {label.lower()}. Build trust or improve relations."
     state["treaties"][country].append(kind)
+    agreements.record(state, country, kind, "signed", "negotiated")
     change_relation(state, country, 8, reason=f"treaty:{kind}")
     change_trust(state, country, 6)
     change_reputation(state, 2)

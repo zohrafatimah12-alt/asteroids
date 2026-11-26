@@ -79,6 +79,7 @@ function opener(m) {
 
 // Level 1 dossier and the beginner's guide to every option.
 export function dossier(m) {
+  if (m.ally) return "";  // no opponent dossier on a partner
   if (m.level > 100) return "";  // war sorties have no stage dossier
   if (m.level !== 1 || home() !== "lumeris") return m.level % 10 === 1 && m.opponent ? opener(m) : "";
   const z = nation("zorvania"), known = z.intel;

@@ -4,6 +4,7 @@ Defeated nations stay sovereign: only the aircraft and support named in a signed
 treaty come under joint command, and they can be grounded or withdrawn.
 """
 
+from nebula.core import agreements
 from nebula.core.intel import add_intel
 from nebula.core.state import (RuleError, add_aircraft, home, change_relation, change_reputation,
                                change_trust, clamp, gain, log, record, relation, stats)
@@ -302,18 +303,28 @@ def strain(state, country: str, amount: int, reason: str):
     treaty = joint(state).get(country)
     if not treaty or treaty["status"] not in ("active", "restricted"):
         return
+    defence = treaty["terms"]["defence"] == "mutual"
     treaty["stability"] = clamp(treaty["stability"] - amount, 0, 100)
     treaty["log"] = (treaty["log"] + [f"Day {state['day']}: {reason} ({-amount:+d})"])[-8:]
     name = COUNTRIES[country]["name"]
     if treaty["stability"] <= 0 and treaty["terms"]["withdrawal"] == "notice":
+        if treaty["status"] == "active" and defence:
+            agreements.record(state, country, "joint_defence", "broken", reason)
         treaty["status"] = "withdrawn"
         _remove_aircraft(state, country)
+        agreements.record(state, country, "joint_command", "broken", reason)
+        change_relation(state, country, -12, reason="treaty_broken")
         remember(state, f"{name} withdrew its aircraft from joint command: {reason}")
         log(state, "treaty_status", country=country, status="withdrawn", reason=reason)
         return
     status = "restricted" if treaty["stability"] < 25 else "active"
     if status != treaty["status"]:
         treaty["status"] = status
+        change = "suspended" if status == "restricted" else "restored"
+        agreements.record(state, country, "joint_command", change, reason)
+        if defence:
+            agreements.record(state, country, "joint_defence", change, reason)
+        change_relation(state, country, -6 if status == "restricted" else 3, reason=f"treaty_{change}")
         remember(state, f"{name} {'restricted' if status == 'restricted' else 'restored'} cooperation: {reason}")
         log(state, "treaty_status", country=country, status=status, reason=reason)
 

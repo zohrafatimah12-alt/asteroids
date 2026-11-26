@@ -7,7 +7,7 @@ are fictional.
 
 import random
 
-from nebula.core import stages
+from nebula.core import agreements, stages
 from nebula.core.intel import add_intel
 from nebula.core.state import (RuleError, change_relation, change_reputation, change_trust, clamp,
                                foreign, gain, home, log, relation, spend)
@@ -94,7 +94,8 @@ def trigger(state, country: str, kind: str | None = None) -> dict | None:
                 "deadline": state["day"] + 6, "status": "open", "title": title,
                 "text": text.format(foe=COUNTRIES[country]["name"]),
                 "truth": rng.choice(["accident", "accident", "provocation", "third_party"]),
-                "evidence": None, "reactions": _reactions(state, country), "outcome": None}
+                "evidence": None, "reactions": _reactions(state, country), "outcome": None,
+                "allied": agreements.protected(state, country), "failed_talks": 0}
     incidents.append(incident)
     _remember(state, f"Misunderstanding with {COUNTRIES[country]['name']}: {title}")
     return incident
@@ -103,11 +104,35 @@ def trigger(state, country: str, kind: str | None = None) -> dict | None:
 def after_level(state, level: int, host: str):
     if level % 10 in (2, 6):
         others = foreign(state)
-        trigger(state, host if host in others else _rng(state, "host", level).choice(others))
+        # The mission's own host may be misunderstood; a random pick is never a protected partner.
+        open_to_dispute = [c for c in others if not agreements.protected(state, c)]
+        if host in others:
+            trigger(state, host)
+        elif open_to_dispute:
+            trigger(state, _rng(state, "host", level).choice(open_to_dispute))
+
+
+def is_allied(state, incident) -> bool:
+    """Allied when the incident began, or protected now."""
+    return incident.get("allied", False) or agreements.protected(state, incident["country"])
+
+
+def escalation(state, incident) -> str | None:
+    """A believable cause for war that does not rest on the player's choice."""
+    country = incident["country"]
+    if any(p["broken"] and p["country"] == country for p in state.get("promises", [])):
+        return "treaty violation"
+    evidence = incident["evidence"]
+    if evidence and evidence["kind"] == incident["truth"] == "provocation":
+        return "confirmed betrayal"
+    return "failed negotiations" if incident.get("failed_talks", 0) else None
 
 
 def blocked_reason(state, incident, choice) -> str | None:
     country = incident["country"]
+    if choice == "military" and is_allied(state, incident) \
+            and not (incident["evidence"] and incident.get("failed_talks", 0)):
+        return "A partner: investigate and attempt negotiation first"
     if choice == "investigate" and incident["evidence"]:
         return "Already investigated"
     if choice == "cooperate" and "peace" not in state["treaties"][country] and state["trust"][country] < 35:
@@ -161,6 +186,25 @@ def _resolve(state, incident, choice) -> str:
         total = score(state, incident, choice) + rng.randint(-12, 12)
         outcome = ("peace" if total >= 6 else "tension" if total >= -8 else
                    "suspended" if total >= -20 else "confrontation" if total >= -30 else "war")
+    cause = None
+    if outcome in ("confrontation", "war"):
+        allied = is_allied(state, incident)
+        cause = "explicit player decision" if choice == "military" else escalation(state, incident)
+        first_failure = not incident.get("failed_talks", 0)
+        if choice == "silence":
+            # Neglect alone cannot start a war without a violation or failed talks, nor with a partner.
+            if outcome == "war" and (allied or not cause):
+                outcome = "suspended"
+        elif choice != "military" and first_failure and (allied or (outcome == "war" and not cause)):
+            incident["failed_talks"] = 1
+            incident["deadline"] = max(incident["deadline"], state["day"] + 3)
+            change_relation(state, country, -4, reason="talks_failed")
+            _remember(state, f"Talks with {name} failed; the misunderstanding is still open")
+            log(state, "incident_talks_failed", country=country, choice=choice)
+            return ("Talks failed (relations -4). The crisis is still open: "
+                    + ("investigate and " if not incident["evidence"] else "") + "decide your next step.")
+        elif allied and outcome == "war" and not incident["evidence"]:
+            outcome = "suspended"  # a partner is never fought before an investigation
     effects = []
     if outcome == "peace":
         change_relation(state, country, 10, reason="incident_peace")
@@ -185,6 +229,8 @@ def _resolve(state, incident, choice) -> str:
         change_relation(state, country, -12, reason="incident_suspended")
         change_trust(state, country, -10)
         lost = [t for t in state["treaties"][country] if t != "peace"]
+        for kind in lost:
+            agreements.record(state, country, kind, "suspended", f"{incident['title']} ({choice})")
         state["treaties"][country] = [t for t in state["treaties"][country] if t == "peace"]
         stages.strain(state, country, 35, "cooperation suspended after an incident")
         effects.append("relations -12, trust -10, agreements suspended: " + (", ".join(lost) or "none held"))
@@ -197,7 +243,7 @@ def _resolve(state, incident, choice) -> str:
         losses = _lose(state, 0.1, 15, "confrontation")
         effects += [f"{dead} military dead", losses, "relations -18, trust -12"]
     else:
-        effects += start_war(state, country, rng)
+        effects += start_war(state, country, rng, f"{cause}: {incident['title']}")
     incident.update(status="resolved", choice=choice, outcome=outcome, resolved_day=state["day"],
                     summary=f"{OUTCOMES[outcome]}: " + "; ".join(effects))
     _remember(state, f"{name} incident, answered by '{choice}': {OUTCOMES[outcome]}")
@@ -213,7 +259,12 @@ def _lose(state, share: float, damage: int, reason: str) -> str:
     return "lost " + ", ".join(f"{v} {k}" for k, v in lost.items()) + f"; every aircraft -{damage} condition"
 
 
-def start_war(state, country: str, rng) -> list[str]:
+def start_war(state, country: str, rng, cause: str) -> list[str]:
+    held = agreements.current(state, country)
+    for kind in state["treaties"][country]:
+        agreements.record(state, country, kind, "broken", cause)
+    if held["joint_defence"]:
+        agreements.record(state, country, "joint_defence", "broken", cause)
     military, civilian = rng.randint(30, 90), rng.randint(10, 60)
     losses = _lose(state, 0.2, 10, "war")
     change_relation(state, country, min(-35, -55 - relation(state, country)), reason="war")
@@ -223,10 +274,11 @@ def start_war(state, country: str, rng) -> list[str]:
     treaty = state.get("joint", {}).get(country)
     if treaty and treaty["status"] in ("active", "restricted"):
         treaty["status"] = "withdrawn"
+        agreements.record(state, country, "joint_command", "broken", cause)
         state["fleet"] = [p for p in state["fleet"] if p.get("owner") != country]
         treaty["aircraft"], treaty["stability"] = [], 0
     state.setdefault("wars", {})[country] = {"since": state["day"], "military": military,
-                                             "civilian": civilian, "victories": 0, "defeats": 0}
+                                             "civilian": civilian, "victories": 0, "defeats": 0, "cause": cause}
     log(state, "war", country=country, status="started")
     return [f"war declared: {military} military and {civilian} civilian dead", losses,
             "all agreements broken; two war missions opened"]
@@ -316,7 +368,8 @@ def daily(state):
         _resolve(state, incident, "silence")
     elif not incident and len(state.get("completed", {})) >= 3:
         rng = _rng(state, "spontaneous")
-        hostile = [c for c in foreign(state) if relation(state, c) <= -30]
+        hostile = [c for c in foreign(state) if relation(state, c) <= -30
+                   and not agreements.protected(state, c)]
         if hostile and rng.random() < 0.03:
             trigger(state, rng.choice(hostile))
 
