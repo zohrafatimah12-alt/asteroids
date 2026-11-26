@@ -173,8 +173,11 @@ def peaceful_option(state, mission) -> dict | None:
         return None
     # A partner can always be asked to help settle it without a shot.
     available = bool(mission.get("stood_down")) or "peace" in state["treaties"][foe] or (relation(state, foe) >= 15 and state["trust"][foe] >= 45)
-    return {"country": foe, "available": available,
-            "requirement": f"A peace treaty with {COUNTRIES[foe]['name']}, or relations 15+ and trust 45+"}
+    name = COUNTRIES[foe]["name"]
+    requirement = (f"Relations 15+ and trust 45+ with {name} (use messages and aid)"
+                   if foe == stages.current_rival(state)
+                   else f"A peace treaty with {name}, or relations 15+ and trust 45+")
+    return {"country": foe, "available": available, "requirement": requirement}
 
 
 def check_level(state, level: int):

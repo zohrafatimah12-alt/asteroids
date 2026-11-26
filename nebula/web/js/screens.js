@@ -79,9 +79,9 @@ function diplomacy(el) {
   el.innerHTML = `<h2>Diplomacy Centre</h2>${picker()}<div class="grid"><div class="panel">${flag(c)} <h3>${esc(c.name)}</h3>
   ${meter("Relations", c.relation + 100, 200)}<div class="small dim">${c.relation} on a −100…100 scale</div>${meter("Trust", c.trust)}${meter("Your reputation", G().reputation)}
   <p>In force: ${c.treaties.map(t => `<span class="tag confirmed">${esc(S.world.treaties[t][0])}</span>`).join(" ") || `<span class="dim">nothing</span>`}</p></div>
-  <div class="panel"><h3>Negotiate (takes one day)</h3>${Object.entries(S.world.treaties).map(([k, [label, , need]]) => {
-    const signed = c.treaties.includes(k), blocked = need && !c.treaties.includes(need);
-    return `<div class="row between"><span>${esc(label)} <span class="small dim">${signed ? "signed" : blocked ? "needs " + need + " first" : c.outlook[k]}</span></span><span>${actionButton("Propose", "treaty", { country: id, kind: k }, signed || blocked)} ${actionButton("+100c offer", "treaty", { country: id, kind: k, offer: 100 }, signed || blocked)}</span></div>`;
+  <div class="panel"><h3>Negotiate (takes one day)</h3>${id === G().rival ? `<p class="bad">${esc(c.name)} is your current opponent. No treaties until you finish all ten missions of this stage. Messages and aid can still build trust.</p>` : ""}${Object.entries(S.world.treaties).map(([k, [label, , need]]) => {
+    const signed = c.treaties.includes(k), rival = id === G().rival, blocked = rival || (need && !c.treaties.includes(need));
+    return `<div class="row between"><span>${esc(label)} <span class="small dim">${signed ? "signed" : rival ? "current opponent" : blocked ? "needs " + need + " first" : c.outlook[k]}</span></span><span>${actionButton("Propose", "treaty", { country: id, kind: k }, signed || blocked)} ${actionButton("+100c offer", "treaty", { country: id, kind: k, offer: 100 }, signed || blocked)}</span></div>`;
   }).join("")}<hr style="border-color:var(--line)"><div class="row">${actionButton("Send aid (80c, 20m)", "aid", { country: id })}${actionButton("Apply pressure", "pressure", { country: id })}</div>
   <p class="small dim">Peace unlocks peaceful mission outcomes. Trade raises daily income. Intelligence allows exchanges. Alliances unlock their aircraft, add a wingman and count toward the Great Union.</p></div></div>
   <div class="panel" style="margin-top:14px"><h3>Territorial disputes</h3><table>${disputes}</table></div>`;

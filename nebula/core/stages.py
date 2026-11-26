@@ -110,6 +110,12 @@ def stage_complete(state, stage: int) -> bool:
     return all(str(n) in state["completed"] for n in range(stage * 10 - 9, stage * 10 + 1))
 
 
+def current_rival(state) -> str | None:
+    """The nation you are still fighting: the opponent of the first unfinished stage."""
+    return next((country for stage, country in enumerate(opponents(home(state)), 1)
+                 if not stage_complete(state, stage)), None)
+
+
 def check_unlocked(state, level: int):
     previous = (level - 1) // 10
     if previous and str(level) not in state["completed"] and str(previous) not in state.get("stage_reports", {}):

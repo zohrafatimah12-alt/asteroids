@@ -43,6 +43,9 @@ def propose(state, country: str, kind: str, sweetener: int = 0) -> tuple[bool, s
     if kind not in TREATIES:
         raise RuleError("Unknown treaty")
     label, needed, prerequisite = TREATIES[kind]
+    if country == stages.current_rival(state):
+        raise RuleError(f"{COUNTRIES[country]['name']} is your current opponent. "
+                        "Finish all ten missions of this stage before signing any treaty.")
     if kind in state["treaties"][country]:
         raise RuleError("That agreement is already in force")
     if prerequisite and prerequisite not in state["treaties"][country]:

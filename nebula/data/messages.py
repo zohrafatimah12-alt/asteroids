@@ -57,7 +57,7 @@ MESSAGES = [
      "replies": [_r("restraint", "We fire only if fired upon.", "Then we understand each other.", relation=6, trust=8),
                  _r("warn", "Keep your aircraft out and no one fires.", "I will pass that upward.", relation=-3, reputation=1)]},
     {"id": "envoy_gift", "from": "lu_dip", "network": "diplomatic", "priority": "normal", "after": ("envoy", "gift"),
-     "subject": "The hotline is live", "body": "Zorvek accepted. If you want a peace treaty, this is the best moment we will get.",
+     "subject": "The hotline is live", "body": "Zorvek accepted. Keep building trust and we may settle this without a shot.",
      "replies": [_r("good", "Good work. Keep the channel open.", "I will.", relation=3, trust=3)]},
     {"id": "readiness", "from": "lu_air", "network": "military", "priority": "high",
      "subject": "Readiness before launch",

@@ -1,5 +1,7 @@
+import pytest
+
 from nebula.core import agreements, conflict, diplomacy, missions, stages, world
-from nebula.core.state import new_state
+from nebula.core.state import RuleError, new_state
 from nebula.data.treaty import DEFAULT
 
 ZV = "zorvania"
@@ -137,3 +139,20 @@ def test_campaign_list_shows_partners_and_keeps_finished_titles():
     assert levels[0]["title"].startswith("Unmarked Raiders") and levels[10]["opponent"] == "thalmora"
     state["completed"]["1"] = "flown"
     assert missions.campaign_for(state)[0]["title"] == "First Watch"
+
+
+@pytest.mark.parametrize("nation, foe", [("kryvos", "lumeris"), ("lumeris", "zorvania")])
+def test_no_treaty_with_the_current_opponent_until_its_stage_is_done(nation, foe):
+    state = new_state("T", seed=1, nation=nation)
+    key = "|".join(sorted((nation, foe)))
+    state["trust"][foe], state["relations"][key] = 100, 90
+    assert stages.current_rival(state) == foe
+    for kind in diplomacy.TREATIES:
+        with pytest.raises(RuleError, match="current opponent"):
+            diplomacy.propose(state, foe, kind)
+    assert state["treaties"][foe] == []
+    mission = missions.mission_for(state, 1)
+    assert "peace treaty" not in missions.peaceful_option(state, mission)["requirement"]
+    state["completed"] = {str(n): "x" for n in range(1, 11)}
+    assert stages.current_rival(state) != foe
+    assert diplomacy.propose(state, foe, "peace")[0]

@@ -128,6 +128,7 @@ def view(campaign_id: int, state: dict) -> dict:
                     "done": sum(str(x) in state["completed"] for x in range(n * 10 - 9, n * 10 + 1)),
                     }
                    for n, c in enumerate(stages.opponents(home(state)), 1)],
+        "rival": stages.current_rival(state),
         "home": home(state), "start_rank": stages.start_rank(state), "joint_rank": stages.joint_rank(state),
         "next_objective": commander.next_objective(state), **conflict.view(state),
     }

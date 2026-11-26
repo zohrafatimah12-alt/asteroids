@@ -63,7 +63,7 @@ uv run python -m nebula.analytics.pipeline 1 --export saves/export
 
 ## How a campaign works
 - **Time:** diplomacy and intelligence actions, missions and "Advance day" move the calendar. Each day pays income and may trigger a world event.
-- **Diplomacy:** peace, then intelligence or alliance; trade any time. Some combat levels can be settled peacefully.
+- **Diplomacy:** peace, then intelligence or alliance; trade any time. No treaty can be signed with your current stage opponent until you finish its ten missions; messages and aid still work. Some combat levels can be settled peacefully.
 - **Intelligence:** unknown, rumour, probable, confirmed. Only confirmed values are exact.
 - **Air force:** fuel, ammunition and repairs cost resources; later missions need more range. Failed missions can be retried.
 - **Stages:** each ten-level stage faces the next nation up the military ranking. Finishing one opens **Joint Command**, where that nation, still independent, can accept, counter or reject a treaty. You may postpone it and continue.

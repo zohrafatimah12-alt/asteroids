@@ -61,7 +61,8 @@ def strategist(state):
                 and not state["builds"]:
             attempt(hangar.manufacture, "lm_dawn")
         if level % 2 == 0:
-            target = min((c for c in FOREIGN if "alliance" not in state["treaties"][c]),
+            target = min((c for c in FOREIGN if "alliance" not in state["treaties"][c]
+                          and c != stages.current_rival(state)),
                          key=lambda c: -diplomacy.score(state, c), default=None)
             if target:
                 for kind in ("peace", "trade", "intelligence", "alliance"):
