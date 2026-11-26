@@ -4,10 +4,13 @@ import { esc, cap, flag, craft, meter, bars, line, toast } from "./ui.js";
 import { MODES, renderMap, zoom } from "./map.js";
 import { jointScreen } from "./stages.js";
 import { cue } from "./audio.js";
-import { intro, startIntro, hq, inbox, nations, debrief, dossier, options } from "./story.js";
+import { menu, select, login, settings, crisis } from "./front.js";
+import { intro } from "./cinema.js";
+import { voiceBar, bindVoice } from "./voice.js";
+import { hq, inbox, nations, debrief, dossier, options } from "./story.js";
 
 const G = () => S.game, nation = id => G().countries[id];
-const foreign = () => Object.keys(G().countries).filter(c => c !== S.world.home);
+const foreign = () => Object.keys(G().countries).filter(c => c !== G().home);
 const cost = c => Object.entries(c).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(", ") || "free";
 const $ = (el, q) => el.querySelector(q);
 const names = ids => ids.map(i => nation(i).name).join(", ") || "none";
@@ -19,7 +22,7 @@ const actionButton = (label, type, attrs = {}, disabled = false) =>
   `<button data-act="${type}" ${Object.entries(attrs).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ")} ${disabled ? "disabled" : ""}>${esc(label)}</button>`;
 
 function profile(id) {
-  const c = nation(id), home = id === S.world.home;
+  const c = nation(id), home = id === G().home;
   const intel = (key, text) => home ? esc([].concat(c[key] ?? []).join(", ")) : text == null ? `<span class="tag unknown">unknown</span>` : `${esc([].concat(text).join(", "))} <span class="tag ${c.intel[key === "military" ? "strength" : key].level}">${c.intel[key === "military" ? "strength" : key].level}</span>`;
   const bases = S.world.map.airbases.filter(b => b[2] === id).map(b => b[1]);
   return `<div class="row">${flag(c)}<div><h2 style="margin:0">${esc(c.name)}</h2><span class="dim">Capital ${esc(c.capital)} · ${c.population}M people</span></div></div>
@@ -35,32 +38,6 @@ function profile(id) {
   <tr><th>Allies</th><td class="good">${esc(names(c.allies))}</td></tr><tr><th>Enemies</th><td class="bad">${esc(names(c.enemies))}</td></tr><tr><th>Neutral</th><td class="dim">${esc(names(c.neutral))}</td></tr></table>
   <div style="margin-top:8px">${meter("Economy", c.economy)}${meter("Technology", c.technology)}</div>
   ${home ? "" : `<div class="row"><button data-open="diplomacy">Diplomacy</button><button data-open="intel">Intelligence</button></div>`}`;
-}
-
-const MENU = [["map", "WORLD ATLAS"], ["nations", "TEN NATIONS"], ["command", "MILITARY DATABASE"], ["intel", "INTELLIGENCE"], ["analytics", "ANALYTICS"], ["settings", "SETTINGS"]];
-function menu(el) {
-  el.innerHTML = `<div class="menu"><div class="star"></div><h1>NEBULA</h1><p class="dim" style="letter-spacing:.4em">THE SKIES OF VEYRA</p>
-  <button class="primary" data-go="new">START CAMPAIGN</button><button ${S.game ? 'data-go="hq"' : "disabled"}>CONTINUE${S.game ? ` · ${esc(S.game.player.toUpperCase())} · DAY ${S.game.day}` : ""}</button>
-  <div class="row" style="justify-content:center;max-width:760px">${MENU.map(([k, t]) => `<button ${S.game ? `data-go="${k}"` : 'disabled title="Start a campaign first"'}>${t}</button>`).join("")}</div>
-  ${S.game ? `<button data-intro>REPLAY INTRODUCTION</button>` : ""}<div id="saves"></div></div>`;
-  return async () => {
-    const replay = $(el, "[data-intro]");
-    if (replay) replay.onclick = startIntro;
-    const list = await api("/campaigns");
-    if (!list.length || !$(el, "#saves")) return;
-    $(el, "#saves").innerHTML = `<h3>Campaigns</h3>${list.slice(0, 5).map(c => `<div class="row"><button data-load="${c.id}">${esc(c.player)} · day ${c.day} · ${c.completed}/100</button></div>`).join("")}`;
-    el.querySelectorAll("[data-load]").forEach(b => b.onclick = async () => { setGame(await api(`/campaigns/${b.dataset.load}`)); go("hq"); });
-  };
-}
-
-function newGame(el) {
-  el.innerHTML = `<div class="menu"><h2>THE SMALL LIGHT</h2><p style="max-width:640px">Lumeris is the weakest of Veyra's ten nations: a few old aircraft, a thin treasury, and the best astronomers who ever lived. Something is falling out of the sky.</p>
-  <form class="row"><input name="player" maxlength="40" placeholder="Commander name" required autocomplete="off"><button class="primary">TAKE COMMAND</button></form><button data-go="menu">Back</button></div>`;
-  return () => $(el, "form").onsubmit = async e => {
-    e.preventDefault();
-    try { setGame(await api("/campaigns", { player: new FormData(e.target).get("player") })); startIntro(); }
-    catch (err) { toast(err.message, true); }
-  };
 }
 
 function map(el) {
@@ -81,7 +58,7 @@ function map(el) {
       if (hit.country) { S.ui.country = hit.country; draw(); showProfile(); }
       else if (hit.base) {
         const [, name, owner, , , role] = S.world.map.airbases.find(b => b[0] === hit.base);
-        const air = owner === S.world.home ? G().fleet.map(p => p.stats.name) : nation(owner).intel.aircraft.value;
+        const air = owner === G().home ? G().fleet.map(p => p.stats.name) : nation(owner).intel.aircraft.value;
         side.innerHTML = `<h2>${esc(name)}</h2><p>${esc(nation(owner).name)} · ${esc(role)} base</p><p>Aircraft: ${air ? esc(air.join(", ")) : `<span class="tag unknown">unknown</span>`}</p>`;
       } else if (hit.dispute) { go("diplomacy"); }
       else toast(hit.note);
@@ -93,11 +70,11 @@ function map(el) {
 }
 
 function diplomacy(el) {
-  S.ui.target ??= "aerovant";
+  if (!foreign().includes(S.ui.target)) S.ui.target = foreign().includes("aerovant") ? "aerovant" : foreign()[0];
   const id = S.ui.target, c = nation(id);
   const disputes = S.world.map.disputes.map(([d, name, a, b]) => {
     const status = G().disputes[d];
-    return `<tr><td>${esc(name)}</td><td>${esc(nation(a).name)} / ${esc(nation(b).name)}</td><td>${status === "open" ? Object.entries(S.world.approaches).map(([k, v]) => actionButton(`${v[0]} (${v[2]}c)`, "dispute", { subject: d, kind: k }, k === "concede" && ![a, b].includes(S.world.home))).join(" ") : `<span class="good">Settled: ${esc(S.world.approaches[status][0])}</span>`}</td></tr>`;
+    return `<tr><td>${esc(name)}</td><td>${esc(nation(a).name)} / ${esc(nation(b).name)}</td><td>${status === "open" ? Object.entries(S.world.approaches).map(([k, v]) => actionButton(`${v[0]} (${v[2]}c)`, "dispute", { subject: d, kind: k }, k === "concede" && ![a, b].includes(G().home))).join(" ") : `<span class="good">Settled: ${esc(S.world.approaches[status][0])}</span>`}</td></tr>`;
   }).join("");
   el.innerHTML = `<h2>Diplomacy Centre</h2>${picker()}<div class="grid"><div class="panel">${flag(c)} <h3>${esc(c.name)}</h3>
   ${meter("Relations", c.relation + 100, 200)}<div class="small dim">${c.relation} on a −100…100 scale</div>${meter("Trust", c.trust)}${meter("Your reputation", G().reputation)}
@@ -112,7 +89,7 @@ function diplomacy(el) {
 }
 
 function intelScreen(el) {
-  S.ui.target ??= "varkhen";
+  if (!foreign().includes(S.ui.target)) S.ui.target = foreign().includes("varkhen") ? "varkhen" : foreign()[0];
   const id = S.ui.target, c = nation(id), pact = c.treaties.includes("intelligence");
   el.innerHTML = `<h2>Intelligence Centre</h2>${picker()}<div class="grid">${Object.entries(c.intel).map(([subject, r]) => `<div class="panel"><h3>${cap(subject)}</h3>
   <span class="tag ${r.level}">${r.level} · ${Math.round(r.confidence * 100)}% confidence</span>
@@ -145,7 +122,9 @@ function hangar(el) {
   }).join("")}</div>`;
 }
 
-function campaign(el) {
+async function campaign(el, current) {
+  S.levels = await api(`/levels?home=${G().home}`);
+  if (!current()) return;
   const g = G(), chapters = [...new Set(S.levels.map(l => l.chapter))];
   el.innerHTML = `<h2>Campaign · ${Object.keys(g.completed).length}/100</h2>${"100" in g.completed && !g.ending ? `<div class="panel"><button class="primary" data-go="ending">The final decision ▸</button></div>` : ""}${chapters.map(n => {
     const levels = S.levels.filter(l => l.chapter === n);
@@ -213,7 +192,7 @@ async function analytics(el, current) {
   const trend = {};
   for (const p of a.relationship_trend) (trend[p.country] ??= []).push(p);
   const strength = foreign().map(c => [c, nation(c).military]).filter(([, v]) => v).map(([c, v]) => { const [lo, hi = lo] = v.split("–").map(Number); return [nation(c).name, Math.round((lo + hi) / 2), v.includes("–") ? "estimate " + v : "confirmed"]; });
-  strength.push([nation(S.world.home).name, nation(S.world.home).military, "home"]);
+  strength.push([nation(G().home).name, nation(G().home).military, "home"]);
   el.innerHTML = `<h2>Analytics</h2><p class="dim">Computed with SQL and Pandas from this campaign's recorded play. Dashes mean there is no data yet.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${tile("Mission success rate", a.mission_success_rate, "%")}${tile("Flown sortie success", a.flown_success_rate, "%")}${tile("Diplomacy success", a.diplomacy_success_rate, "%")}${tile("Conflicts avoided", a.conflicts_avoided)}${tile("Credits per success", a.credits_per_success)}${tile("Campaign progress", a.campaign.completed, "/100")}</div>
   <div class="grid" style="margin-top:14px">
@@ -227,37 +206,19 @@ async function analytics(el, current) {
   ${panel("Treaty stability", bars(a.treaties.map(t => [nation(t.country).name, t.stability, `${t.status}, ${t.aircraft} aircraft`]), { max: 100 }))}
   ${panel("Joint air rank changes", a.rank_history.map(r => `<div>Day ${r.day}: rank ${r.previous} → ${r.new} (actual strength ${r.rating})</div>`).join("") || bars([]))}
   ${panel("How missions were resolved", bars(Object.entries(a.by_mode).map(([k, v]) => [cap(k), v])))}</div>
-  <div class="panel" style="margin-top:14px"><h3>Relationship with Lumeris over time (−100 to 100)</h3><div class="grid">${Object.entries(trend).map(([c, pts]) => `<div>${esc(nation(c).name)} <span class="dim">now ${pts.at(-1).value}</span>${line(pts)}</div>`).join("") || bars([])}</div></div>`;
-}
-
-async function settings(el, current) {
-  const saves = await api(`/campaigns/${G().id}/snapshots`);
-  if (!current()) return;
-  const toggle = (key, label, onValue) => `<label class="row"><input type="checkbox" data-pref="${key}" ${localStorage.getItem(key) === onValue ? "checked" : ""}> ${label}</label>`;
-  el.innerHTML = `<h2>Settings</h2><div class="grid"><div class="panel"><h3>Experience</h3>${toggle("nebula.sound", "Mute interface sound", "off")}${toggle("nebula.calm", "Reduce motion", "on")}</div>
-  <div class="panel"><h3>Save game</h3><p class="small dim">The campaign autosaves after every action. Snapshots let you branch.</p><form class="row"><input name="label" maxlength="40" placeholder="Snapshot name" required><button>Save snapshot</button></form>
-  <h3>Load</h3>${saves.map(s => `<div class="row between"><span>${esc(s.label)} <span class="dim small">${esc(s.created_at)}</span></span><button data-restore="${s.id}">Load</button></div>`).join("") || `<span class="dim">No snapshots.</span>`}</div></div>`;
-  return () => {
-    el.querySelectorAll("[data-pref]").forEach(box => box.onchange = () => {
-      const key = box.dataset.pref;
-      localStorage.setItem(key, key === "nebula.sound" ? (box.checked ? "off" : "on") : (box.checked ? "on" : "off"));
-      document.body.classList.toggle("calm", localStorage.getItem("nebula.calm") === "on");
-    });
-    $(el, "form").onsubmit = async e => { e.preventDefault(); await api(`/campaigns/${G().id}/snapshots`, { label: new FormData(e.target).get("label") }); render(false); };
-    el.querySelectorAll("[data-restore]").forEach(b => b.onclick = async () => { setGame(await api(`/snapshots/${b.dataset.restore}/restore`, {})); toast("Snapshot loaded as a new branch."); go("map"); });
-  };
+  <div class="panel" style="margin-top:14px"><h3>Your relationships over time (−100 to 100)</h3><div class="grid">${Object.entries(trend).map(([c, pts]) => `<div>${esc(nation(c).name)} <span class="dim">now ${pts.at(-1).value}</span>${line(pts)}</div>`).join("") || bars([])}</div></div>`;
 }
 
 function ending(el) {
   const g = G();
   if (g.ending) {
     const [title, lines] = g.ending_story;
-    el.innerHTML = `<div class="cinema"><div class="star"></div><h2>${esc(title.toUpperCase())}</h2>${lines.map((l, i) => `<p style="animation-delay:${1 + i * 2.6}s">${esc(l)}</p>`).join("")}<p style="animation-delay:${2 + lines.length * 2.6}s"><button data-go="analytics">See what your choices did</button> <button data-go="menu">Main menu</button></p></div>`;
-    return;
+    el.innerHTML = `<div class="cinema"><div class="star"></div><h2>${esc(title.toUpperCase())}</h2>${voiceBar()}${lines.map((l, i) => `<p style="animation-delay:${1 + i * 2.6}s">${esc(l)}</p>`).join("")}<p style="animation-delay:${2 + lines.length * 2.6}s"><button data-go="analytics">See what your choices did</button> <button data-go="menu">Main menu</button></p></div>`;
+    return () => bindVoice(el, lines.map(text => ({ name: "Narrator", text })));
   }
   const done = "100" in g.completed;
   el.innerHTML = `<div class="cinema"><h2>THE FINAL DECISION</h2><div class="grid" style="width:min(900px,100%);text-align:left">${[["union", "Raise the shield together"], ["evacuation", "Launch the arks"]].map(([k, t]) => `<div class="panel"><h3>${t}</h3>${g.ending_requirements[k].map(([text, ok]) => `<div class="${ok ? "good" : "bad"}">${ok ? "✔" : "✘"} ${esc(text)}</div>`).join("")}<div class="row">${actionButton("Commit", "ending", { kind: k }, !done)}</div></div>`).join("")}</div>
   <div class="dim">A plan whose conditions are unmet falls back to whatever Veyra can still achieve.</div><button data-go="campaign">Not yet</button></div>`;
 }
 
-export const SCREENS = { joint: jointScreen, menu, new: newGame, intro, hq, inbox, nations, debrief, map, diplomacy, intel: intelScreen, command, hangar, campaign, briefing, combat, events, analytics, settings, ending };
+export const SCREENS = { joint: jointScreen, menu, new: select, select, login, crisis, intro, hq, inbox, nations, debrief, map, diplomacy, intel: intelScreen, command, hangar, campaign, briefing, combat, events, analytics, settings, ending };

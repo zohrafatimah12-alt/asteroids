@@ -39,7 +39,7 @@ const GLYPHS = {
 };
 
 export function renderMap(el, data, game, mode, selected, onPick) {
-  const m = data.map, home = data.home;
+  const m = data.map, home = game.home;
   const pos = Object.fromEntries(m.airbases.map(b => [b[0], b]));
   const path = pts => "M" + pts.map(p => p.join(" ")).join("L");
   const land = Object.entries(m.shapes).map(([id, polys]) =>

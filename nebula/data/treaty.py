@@ -18,7 +18,7 @@ DEFAULT = {"aircraft": "30", "supplies": "modest", "intelligence": "limited", "b
            "defence": "mutual", "duration": "150", "withdrawal": "notice"}
 
 # The term each nation weighs double, and who voices objections to which terms.
-PRIORITY = {"zorvania": "intelligence", "thalmora": "bases", "elyndra": "rules", "ostraven": "supplies",
+PRIORITY = {"lumeris": "technology", "zorvania": "intelligence", "thalmora": "bases", "elyndra": "rules", "ostraven": "supplies",
             "frostara": "defence", "kryvos": "duration", "aerovant": "technology",
             "drakoria": "aircraft", "varkhen": "command"}
 AIR_TERMS = ("aircraft", "rules", "training", "supplies", "bases")

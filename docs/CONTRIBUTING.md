@@ -6,4 +6,5 @@
 - Analytics must stay read-only and must never show invented numbers.
 - Keep the original Asteroids files working.
 - Escape any user-provided text with `esc()` in the web client.
+- Rules must use `home(state)` for the player's nation, never assume Lumeris.
 - Never commit databases, secrets or `saves/`. Do not force-push.

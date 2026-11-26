@@ -5,7 +5,7 @@ import random
 from nebula.core import stages
 from nebula.core.hangar import finish_builds
 from nebula.core.intel import add_intel
-from nebula.core.state import (FOREIGN, change_relation, change_trust, gain, record, relation)
+from nebula.core.state import (foreign, home, change_relation, change_trust, gain, record, relation)
 from nebula.data.countries import COUNTRIES
 from nebula.data.events import EVENTS
 
@@ -19,13 +19,13 @@ def daily_income(state) -> dict:
 
 def roll_event(state, rng: random.Random) -> dict | None:
     category, title, text, effects = rng.choice(EVENTS)
-    a, b = rng.sample(FOREIGN, 2)
+    a, b = rng.sample(foreign(state), 2)
     if category == "threat" and state["unlocked"] < 5:
         return None
     # Treaties and goodwill have teeth: friends do not stage incidents with each other.
     if effects.get("rel", 0) < 0 and relation(state, a, b) >= 45:
         return None
-    names = {"a": COUNTRIES[a]["name"], "b": COUNTRIES[b]["name"]}
+    names = {"a": COUNTRIES[a]["name"], "b": COUNTRIES[b]["name"], "home": COUNTRIES[home(state)]["name"]}
     event = {"day": state["day"], "category": category, "title": title.format(**names),
              "text": text.format(**names), "countries": [a, b] if "{b}" in title + text else [a]}
     if "rel" in effects:
@@ -57,6 +57,8 @@ def advance_day(state, days: int = 1) -> list[dict]:
         gain(state, "income:daily", **daily_income(state))
         finish_builds(state)
         stages.daily(state)
+        from nebula.core import conflict
+        conflict.daily(state)
         if rng.random() < 0.65:
             event = roll_event(state, rng)
             if event:

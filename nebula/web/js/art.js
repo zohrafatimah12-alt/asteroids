@@ -41,30 +41,15 @@ export function planet(world, countries, highlight) {
   <circle cx="300" cy="300" r="250" fill="url(#shade)"/></svg>`;
 }
 
-export function commandRoom(world, countries) {
+export function commandRoom(world, countries, home = "lumeris") {
   const pick = seeded("elowen");
   const city = Array.from({ length: 44 }, (_, i) => { const h = 30 + pick(105), x = 20 + i * 26; return `<path d="M${x} 205v-${h}l9-8 9 8v${h}Z" fill="#0c1740"/>${Array.from({ length: 4 }, () => `<rect x="${x + 3 + pick(11)}" y="${205 - pick(h)}" width="2" height="3" fill="${pick(4) ? "#52dcf0" : "#f0c870"}" opacity=".8"/>`).join("")}`; }).join("");
-  const holo = Object.entries(world.map.shapes).map(([id, polys]) => polys.map(p => `<path d="M${p.map(q => q.join(" ")).join("L")}Z" fill="${countries[id].colors[0]}" fill-opacity="${id === "lumeris" ? .8 : .16}" stroke="#52dcf0" stroke-width="3"/>`).join("")).join("");
-  return `<svg class="room" viewBox="0 0 1160 380" role="img" aria-label="Lumeris command centre overlooking Elowen">
+  const holo = Object.entries(world.map.shapes).map(([id, polys]) => polys.map(p => `<path d="M${p.map(q => q.join(" ")).join("L")}Z" fill="${countries[id].colors[0]}" fill-opacity="${id === home ? .8 : .16}" stroke="#52dcf0" stroke-width="3"/>`).join("")).join("");
+  return `<svg class="room" viewBox="0 0 1160 380" role="img" aria-label="Command centre">
   <defs><linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070b26"/><stop offset="1" stop-color="#33296b"/></linearGradient></defs>
   <rect width="1160" height="380" fill="#050814"/><rect x="14" y="12" width="1132" height="194" fill="url(#dusk)"/><circle cx="930" cy="58" r="14" fill="#ffe9bd"/><circle cx="930" cy="58" r="36" fill="#ffe9bd" opacity=".14"/>${city}
   ${[14, 297, 580, 863, 1146].map(x => `<rect x="${x - 5}" y="8" width="10" height="204" fill="#151d3d"/>`).join("")}<path d="M0 212H1160" stroke="#3a4a86" stroke-width="6"/>
   <ellipse cx="580" cy="318" rx="370" ry="55" fill="#0b1535" stroke="#52dcf0" stroke-opacity=".6"/>
   <path d="M290 305L350 232H810L870 305Z" fill="#52dcf0" opacity=".05"/><g class="holo" transform="translate(340 205) scale(.3 .15)">${holo}</g>
   ${[90, 190, 970, 1070].map((x, i) => `<g transform="translate(${x} 262)"><rect x="-40" y="-26" width="80" height="48" rx="3" fill="#0a1c3a" stroke="#52dcf0" stroke-opacity=".5"/><path d="M-30 ${8 - i * 3}l14-12 12 7 15-18 19 14" fill="none" stroke="#9a7dff" stroke-width="2"/><path d="M-14 62q2-34 14-34t14 34Z" fill="#02040c"/><circle cy="22" r="9" fill="#02040c"/></g>`).join("")}</svg>`;
-}
-
-// Ambient drone for the cinematic: no voices, only a soft synthesised pad.
-let pad;
-export function ambience(volume) {
-  try {
-    if (!pad) {
-      const ctx = new AudioContext(), gain = ctx.createGain();
-      gain.connect(ctx.destination);
-      for (const f of [55, 82.4, 110.3]) { const o = ctx.createOscillator(); o.frequency.value = f; o.connect(gain); o.start(); }
-      pad = { ctx, gain };
-    }
-    pad.ctx.resume();
-    pad.gain.gain.setTargetAtTime(volume * 0.05, pad.ctx.currentTime, 0.4);
-  } catch { /* audio is optional */ }
 }

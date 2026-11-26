@@ -1,6 +1,6 @@
 """Air force management: servicing, upgrades, manufacturing and research."""
 
-from nebula.core.state import HOME, RuleError, add_aircraft, find_plane, log, spend, stats
+from nebula.core.state import RuleError, add_aircraft, home, find_plane, log, spend, stats
 from nebula.data.aircraft import AIRCRAFT, UPGRADES
 
 # id: (name, description, cost, prerequisite)
@@ -26,7 +26,7 @@ PARTNERS = ("aerovant", "drakoria")  # allies who make big projects cheaper
 
 
 def research_cost(state, project: str) -> dict:
-    discount = sum(0.15 for c in PARTNERS if "alliance" in state["treaties"][c])
+    discount = sum(0.15 for c in PARTNERS if "alliance" in state["treaties"].get(c, []))
     return {k: round(v * (1 - discount)) for k, v in RESEARCH[project][2].items()}
 
 
@@ -99,7 +99,7 @@ def availability(state, kind: str) -> str | None:
     """None when buildable, otherwise the reason it is locked."""
     spec = AIRCRAFT[kind]
     country = spec["country"]
-    if country == HOME:
+    if country == home(state):
         if kind == "lm_dawn" and "airframe" not in state["research"]:
             return "Research the Dawnspire Airframe"
         return None

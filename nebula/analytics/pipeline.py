@@ -67,9 +67,10 @@ def metrics(con, campaign_id: int) -> dict:
 
     trend = []
     if not relations.empty:
-        mine = relations[(relations["country_a"] == "lumeris") | (relations["country_b"] == "lumeris")].copy()
+        me = state.get("home", "lumeris")
+        mine = relations[(relations["country_a"] == me) | (relations["country_b"] == me)].copy()
         if not mine.empty:
-            mine["country"] = mine["country_a"].where(mine["country_a"] != "lumeris", mine["country_b"])
+            mine["country"] = mine["country_a"].where(mine["country_a"] != me, mine["country_b"])
             trend = _records(mine.groupby(["country", "day"], as_index=False)["value"].last())
 
     decisions = []
@@ -104,6 +105,8 @@ def metrics(con, campaign_id: int) -> dict:
         "decisions": decisions,
         "joint_outcomes": {k: int(v) for k, v in outcomes.value_counts().items()},
         "rank_history": _details("rank_change"),
+        "incident_outcomes": pd.Series([d["outcome"] for d in _details("incident")], dtype=object).value_counts().to_dict(),
+        "wars": state.get("war_record", []) + [{"country": c, **w} for c, w in state.get("wars", {}).items()],
         "treaty_status_changes": _details("treaty_status"),
         "treaties": [{"country": c, "status": t["status"], "stability": t["stability"],
                       "aircraft": len(t["aircraft"])} for c, t in state.get("joint", {}).items()],

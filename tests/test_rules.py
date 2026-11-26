@@ -1,6 +1,6 @@
 import pytest
 
-from nebula.core import diplomacy, endings, hangar, intel, missions, stages, world
+from nebula.core import conflict, diplomacy, endings, hangar, intel, missions, stages, world
 from nebula.core.state import FOREIGN, RuleError, new_state
 from nebula.data.treaty import DEFAULT
 
@@ -15,6 +15,15 @@ def strategist(state):
 
     for level in range(1, 101):
         for _ in range(60):
+            for choice in ("cooperate", "envoy", "share", "negotiate"):
+                if conflict.open_incident(state):
+                    attempt(conflict.respond, choice)
+            for country in list(state.get("wars", {})):
+                if not attempt(conflict.ceasefire, country) or country in state["wars"]:
+                    for plane in list(state["fleet"]):
+                        attempt(hangar.service, plane["uid"], "all")
+                        if country in state["wars"]:
+                            attempt(missions.delegate, conflict.war_level(country), plane["uid"])
             if str(level) in state["completed"]:
                 break
             mission = missions.definition(level)

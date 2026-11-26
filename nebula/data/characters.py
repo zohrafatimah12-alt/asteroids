@@ -32,6 +32,11 @@ _ROWS = [
     ("dr_air", "drakoria", "Air Force Commander", "Forgemaster Hedda Krull", "gruff, fair", "Waste no airframe", "Production is behind"),
     ("vk_air", "varkhen", "Air Force Commander", "Strike General Ruvan Kesh", "proud, disciplined", "Keep Varkhen unbeaten", "Doubts the Marshal"),
 ]
+_RESIDENTS = {"aerovant": "Mira Tolland", "varkhen": "Osk Veremin", "elyndra": "Hanne Corvel", "zorvania": "Pell Sarrow",
+              "thalmora": "Noa Brisk", "kryvos": "Samir Adelane", "frostara": "Ylva Torn", "drakoria": "Gunnar Hesk",
+              "ostraven": "Lucan Ferre"}
+_ROWS += [(f"civ_{c}", c, "Civilian Representative", n, "worried, plain-spoken", "Keep families safe",
+           "Has relatives across the border") for c, n in _RESIDENTS.items()]
 CHARACTERS = {r[0]: dict(zip(("id", "country", "role", "name", "personality", "goal", "private"), r)) for r in _ROWS}
 
 
@@ -40,4 +45,5 @@ def public(cid: str) -> dict:
 
 
 LEADERS = {c["country"]: i for i, c in reversed(list(CHARACTERS.items()))}
+CIVILIANS = {c["country"]: i for i, c in CHARACTERS.items() if c["role"] == "Civilian Representative"}
 AIR_CHIEFS = {c["country"]: i for i, c in CHARACTERS.items() if c["role"] == "Air Force Commander"}

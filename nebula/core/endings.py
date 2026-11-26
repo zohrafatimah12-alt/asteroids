@@ -1,7 +1,7 @@
 """The three endings, decided by what the player actually did."""
 
 from nebula.core import stages
-from nebula.core.state import FOREIGN, RuleError, log, relation
+from nebula.core.state import RuleError, foreign, log, relation
 
 ENDINGS = {
     "union": ("The Great Union", [
@@ -29,7 +29,7 @@ ENDINGS = {
 
 
 def cooperating(state) -> list[str]:
-    return [c for c in FOREIGN if "alliance" in state["treaties"][c] or c in stages.active(state)
+    return [c for c in foreign(state) if "alliance" in state["treaties"][c] or c in stages.active(state)
             or (relation(state, c) >= 40 and state["trust"][c] >= 60)]
 
 
@@ -44,6 +44,7 @@ def requirements(state) -> dict:
     return {
         "union": [
             (f"Cooperating nations: {partners}/{needed}", partners >= needed),
+            ("No active wars", not state.get("wars")),
             ("Shield Lattice III complete", "shield3" in state["research"]),
             (f"Reputation {state['reputation']}/65", state["reputation"] >= 65),
             (f"Territorial disputes settled: {settled}/2", settled >= 2),

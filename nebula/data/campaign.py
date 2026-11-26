@@ -129,6 +129,25 @@ NEBULA|battle|The Shard-Star fills the sky. Beyond it, Nebula still shines.
 ]
 
 
+# Shorter briefings used when the player commands a nation other than Lumeris.
+TEMPLATES = {
+    "interception": ("Contact", "{foe} aircraft cross toward {place}. Turn them back."),
+    "escort": ("Safe Passage", "Bring a transport through contested skies near {place}."),
+    "reconnaissance": ("Long Look", "Survey the approaches to {place}."),
+    "defence": ("The Line", "Hold a relay station near {place}."),
+    "rescue": ("Beacon", "A crew is down near {place}. Bring them home."),
+    "strike": ("Silent Guns", "Disable hostile emplacements near {place}."),
+    "airbase": ("Home Strip", "An airbase near {place} is under attack."),
+    "investigation": ("Cold Trail", "Something unexplained is moving near {place}."),
+    "emergency": ("Falling Sky", "Debris is falling toward {place}. Break it apart."),
+    "battle": ("Proving Day", "{foe}'s main wing takes the field near {place}."),
+    "diplomacy": ("The Table", "{foe} agrees to talk. Choose how {home} answers."),
+    "intelligence": ("Hidden File", "{foe} knows something {home} needs."),
+    "economy": ("The Price", "Decide what {home} will spend on this relationship."),
+    "research": ("Shared Sky", "New observations need a research choice."),
+}
+
+
 def levels() -> list[dict]:
     result = []
     for ci, (country, chapter, block) in enumerate(CHAPTERS):

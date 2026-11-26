@@ -16,10 +16,10 @@ from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from nebula.analytics.pipeline import metrics
-from nebula.core import commander, db, diplomacy, endings, hangar, intel, missions, stages, world
-from nebula.core.state import HOME, RuleError, new_state, relation, stats
+from nebula.core import commander, conflict, db, diplomacy, endings, hangar, intel, missions, stages, world
+from nebula.core.state import HOME, RuleError, home, new_state, relation, stats
 from nebula.data.aircraft import ABILITIES, AIRCRAFT, UPGRADES
-from nebula.data.characters import CHARACTERS, LEADERS, public as public_character
+from nebula.data.characters import AIR_CHIEFS, CHARACTERS, LEADERS, public as public_character
 from nebula.data.countries import COUNTRIES
 from nebula.data.treaty import DEFAULT, DEFENSIVE_TYPES, TERMS
 from nebula.data.geography import map_payload, neighbours
@@ -47,6 +47,7 @@ def missing(_: Request, exc: KeyError):
 class NewCampaign(BaseModel):
     player: str = Field(min_length=1, max_length=40)
     seed: int | None = None
+    nation: str = HOME
 
 
 class Action(BaseModel):
@@ -57,7 +58,7 @@ class Action(BaseModel):
     kind: str = ""
     subject: str = ""
     uid: int = 0
-    level: int = Field(default=0, ge=0, le=100)
+    level: int = Field(default=0, ge=0, le=110)
     offer: int = Field(default=0, ge=0, le=1000)
 
 
@@ -66,7 +67,7 @@ class Label(BaseModel):
 
 
 class SortieRequest(BaseModel):
-    level: int = Field(ge=1, le=100)
+    level: int = Field(ge=1, le=110)
     uid: int
 
 
@@ -78,7 +79,7 @@ def country_profile(state, cid: str) -> dict:
     c["enemies"] = [o for o, v in stances.items() if v <= -35]
     c["neutral"] = [o for o, v in stances.items() if -35 < v < 40]
     c["fleet"] = None
-    if cid == HOME:
+    if cid == home(state):
         c["intel"] = None
     else:
         c["intel"] = intel.report(state, cid)
@@ -92,6 +93,14 @@ def country_profile(state, cid: str) -> dict:
     return c
 
 
+def _ending_story(state):
+    if not state["ending"]:
+        return None
+    title, lines = endings.ENDINGS[state["ending"]]
+    mine = COUNTRIES[home(state)]
+    return title, [x.replace("Lumeris", mine["name"]).replace("Elowen", mine["capital"]) for x in lines]
+
+
 def view(campaign_id: int, state: dict) -> dict:
     fleet = [{**p, "stats": stats(p), "grounded": stages.grounded(state, p), "service": hangar.service_cost(p),
               "upgrade_costs": {k: hangar.upgrade_cost(p["upgrades"].get(k, 0)) for k in UPGRADES}}
@@ -102,22 +111,25 @@ def view(campaign_id: int, state: dict) -> dict:
         "countries": {c: country_profile(state, c) for c in COUNTRIES},
         "tracks": intel.tracks(state), "income": world.daily_income(state),
         "research_tree": [{"id": k, "name": v[0], "description": v[1], "requires": v[3],
-                           "cost": hangar.research_cost(state, k)} for k, v in hangar.RESEARCH.items()],
+                           "cost": hangar.research_cost(state, k)} for k, v in hangar.RESEARCH.items()
+                          if k != "airframe" or home(state) == HOME],
         "market": [{**a, "locked": hangar.availability(state, k), "price": hangar.build_cost(k)}
                    for k, a in AIRCRAFT.items()],
         "ending_requirements": endings.requirements(state),
-        "ending_story": endings.ENDINGS.get(state["ending"]),
+        "ending_story": _ending_story(state),
         "inbox": commander.inbox(state), "advice": commander.advice(state),
         "ranking": commander.national_ranking(), "air_power": commander.air_power(state),
         "history": state.get("history", []), "tactics": state.get("tactics", []),
         "philosophy": state.get("philosophy"),
         "air_ranking": stages.air_ranking(state), "joint": state.get("joint", {}),
         "talks": state.get("talks", {}), "stage_reports": stages.reports(state),
-        "joint_strength": stages.air_ratings(state)["lumeris"], "signed_stages": stages.signed_stages(state),
+        "joint_strength": stages.air_ratings(state)[home(state)], "signed_stages": stages.signed_stages(state),
         "stages": [{"stage": n, "country": c, "complete": stages.stage_complete(state, n),
                     "done": sum(str(x) in state["completed"] for x in range(n * 10 - 9, n * 10 + 1)),
                     }
-                   for n, c in enumerate(stages.STAGE_OPPONENTS, 1)],
+                   for n, c in enumerate(stages.opponents(home(state)), 1)],
+        "home": home(state), "start_rank": stages.start_rank(state), "joint_rank": stages.joint_rank(state),
+        "next_objective": commander.next_objective(state), **conflict.view(state),
     }
 
 
@@ -126,14 +138,20 @@ def get_world():
     return {"map": map_payload(), "abilities": ABILITIES,
             "upgrades": UPGRADES, "treaties": diplomacy.TREATIES,
             "approaches": diplomacy.APPROACHES, "home": HOME,
+            "leaders": LEADERS, "air_chiefs": AIR_CHIEFS,
+            "nations": {c: {"id": c, "name": v["name"], "capital": v["capital"], "colors": v["colors"],
+                            "emblem": v["emblem"], "strengths": v["strengths"], "weaknesses": v["weaknesses"],
+                            "rank": stages.national_order().index(c) + 1} for c, v in COUNTRIES.items()},
             "characters": {k: public_character(k) for k in CHARACTERS}, "leaders": LEADERS,
             "philosophies": commander.PHILOSOPHIES, "tactics": missions.TACTICS,
             "terms": TERMS, "default_terms": DEFAULT, "defensive_types": DEFENSIVE_TYPES}
 
 
 @app.get("/api/levels")
-def get_levels():
-    return [missions.definition(n) for n in range(1, 101)]
+def get_levels(home: str = HOME):
+    if home not in COUNTRIES:
+        raise KeyError(home)
+    return [missions.definition(n, home) for n in range(1, 101)]
 
 
 @app.get("/api/campaigns")
@@ -144,7 +162,7 @@ def get_campaigns():
 
 @app.post("/api/campaigns", status_code=201)
 def post_campaign(body: NewCampaign):
-    state = new_state(body.player.strip() or "Commander", body.seed)
+    state = new_state(body.player.strip() or "Commander", body.seed, body.nation)
     with _lock, db.connect() as con:
         cid = db.create_campaign(con, state)
         return view(cid, state)
@@ -160,7 +178,7 @@ def get_campaign(cid: int):
 def get_mission(cid: int, level: int):
     with db.connect() as con:
         state = db.load(con, cid)
-    mission = missions.definition(level)
+    mission = missions.mission_for(state, level)
     mission["peaceful"] = missions.peaceful_option(state, mission)
     mission["odds"] = {p["uid"]: missions.success_chance(state, mission, p)
                        for p in state["fleet"]} if mission["combat"] else {}
@@ -187,9 +205,11 @@ ACTIONS = {
     "joint_propose": lambda s, a: stages.propose(s, a.stage, a.terms),
     "joint_counter": lambda s, a: stages.accept_counter(s, a.stage),
     "joint_postpone": lambda s, a: stages.postpone(s, a.stage),
+    "incident": lambda s, a: conflict.respond(s, a.kind),
+    "ceasefire": lambda s, a: conflict.ceasefire(s, a.country),
     "ending": lambda s, a: f"Ending reached: {endings.ENDINGS[endings.conclude(s, a.kind)][0]}",
 }
-DAY_ACTIONS = {"joint_propose", "treaty", "aid", "pressure", "dispute", "intel"}  # each takes a day
+DAY_ACTIONS = {"incident", "ceasefire", "joint_propose", "treaty", "aid", "pressure", "dispute", "intel"}  # each takes a day
 
 
 @app.post("/api/campaigns/{cid}/actions")
@@ -257,7 +277,7 @@ def post_sortie(cid: int, body: SortieRequest):
 
     with _lock, db.connect() as con:
         state = db.load(con, cid)
-        mission = missions.definition(body.level)
+        mission = missions.mission_for(state, body.level)
         missions.check_level(state, body.level)
         if not mission["combat"]:
             raise RuleError("This is a strategic mission")

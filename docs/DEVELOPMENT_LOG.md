@@ -1,5 +1,9 @@
 # Development log
 
+## Nation choice, voiced intro, logout and crises
+- Added selectable nations, a self-playing voiced introduction, home page with How to Play, settings, local log out and log in, misunderstandings, war and ceasefire. This replaces the earlier no-voice introduction.
+- Found and fixed: Aerovant and Drakoria campaigns failing to load; diplomacy defaulting to the player's own nation.
+
 ## Ranked stages and joint air command
 - Reordered the campaign to face national ranks 9 to 1, then a global crisis; wrote a new Ostraven stage and adapted Stage 1 to Zorvania.
 - Added treaty talks (accept, counteroffer, reject, postpone), partner-owned aircraft, operating rules, stability, restriction, withdrawal, expiry, stage reports and a data-computed joint air ranking.

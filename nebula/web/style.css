@@ -87,3 +87,16 @@ body.calm *{animation:none!important;transition:none!important}body.calm .cinema
 .envelope{display:flex;gap:10px;width:100%;text-align:left;margin-bottom:8px}
 .guide summary{cursor:pointer;color:var(--gold);letter-spacing:.15em}
 @media(max-width:760px){.mail{grid-template-columns:1fr}.levels{grid-template-columns:repeat(5,1fr)}main{padding:10px}.panel{overflow-x:auto}.res{font-size:12px}#top{position:static}}
+.big{font-size:20px;min-width:320px!important;padding:16px!important;box-shadow:0 0 30px rgba(154,125,255,.55);animation:glow 4s ease-in-out infinite}
+.menu .star{width:70px;height:70px}.menu h1{font-size:clamp(46px,8vw,88px)}
+.savecard{width:min(420px,94vw);text-align:left}.how{max-width:760px}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.steps>div{display:flex;flex-direction:column;align-items:center;gap:4px;animation:in .6s both}
+.nationgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.nationgrid button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px}.nationgrid .on{border-width:2px}
+@media(max-width:760px){.steps{grid-template-columns:repeat(2,1fr)}.nationgrid{grid-template-columns:repeat(2,1fr)}}
+.progress{width:min(600px,90vw);height:3px;background:#1a2348}.progress i{display:block;height:100%;background:var(--gold);transition:width .8s}
+.film .subtitle{min-height:76px;margin:0}.closeup{display:flex;flex-direction:column;align-items:center;gap:10px;animation:dolly 2.5s ease-out both}.closeup .portrait{box-shadow:0 0 70px rgba(82,220,240,.35)}
+.reveal .planet{width:min(380px,80vw)}.title-card{font-size:clamp(50px,11vw,130px);letter-spacing:.3em;color:var(--gold)}
+.threat{position:relative}.shard{position:absolute;top:0;right:-40px;width:42px;height:60px;background:linear-gradient(200deg,#fff,#9a7dff 45%,#3a0f55);clip-path:polygon(50% 0,100% 35%,72% 100%,25% 80%,0 30%);filter:drop-shadow(0 0 20px #c06bff);animation:approach 9s ease-in forwards}
+@keyframes approach{from{transform:translate(140px,-90px) scale(.3) rotate(0)}to{transform:translate(-70px,70px) scale(1.5) rotate(140deg)}}
+.voicebar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.voicebar .subtitle{color:var(--gold)}
+.alert{border-color:var(--red)}.reactions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px}.option{display:flex;flex-direction:column;gap:4px;padding:12px}
+.objective{display:flex;gap:14px;align-items:center;margin-top:12px;border-color:var(--gold)}.objective b{flex:1;font-size:18px}

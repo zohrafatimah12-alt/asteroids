@@ -41,13 +41,14 @@ The original game:
 uv run main.py
 ```
 
-## Your first mission
-1. **Start campaign**, enter a name and watch the written introduction (no voices; skippable, but you must choose a command philosophy).
-2. In the command centre, follow **Commander training**. Answer messages in the **Inbox**.
-3. Open **Mission briefing**: read the Zorvania dossier and **What should I do?**
-4. Press **LAUNCH MISSION** (Pygame window; Enter to take off). The debrief opens when you finish.
+## Your first game
+1. On your first visit the introduction plays by itself (about two minutes). **Skip intro** at any time; tap **Tap for sound** if your browser blocks audio.
+2. Choose any of the ten nations. **Lumeris** is recommended: it has the full written story.
+3. Follow **Next objective** in the command centre. **Launch mission** opens the Pygame window (Enter to take off).
+4. After some missions a misunderstanding appears in the **Crisis Room**. You can investigate, negotiate, send an envoy, share intelligence, hold a joint inquiry or respond with force. Peace is not guaranteed; war opens war missions and ceasefire talks.
+5. **Settings** has audio, subtitles, saves and **Log out**. Logging out keeps your campaign; **Log in** restores it. Profiles are local and have no password.
 
-To avoid combat, build goodwill with Zorvania (for example, choose Diplomacy First, fund the hotline and answer its follow-up) until **Resolve peacefully** unlocks.
+Voices use your browser's built-in speech synthesis, so they vary by computer. Without a voice, lines play as timed subtitles.
 
 ## Test
 ```bash

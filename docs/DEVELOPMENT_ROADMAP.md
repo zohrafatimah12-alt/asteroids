@@ -1,6 +1,11 @@
 # Roadmap and known limitations
 
 ## Limitations today
+- **Voice** is browser speech synthesis, not recorded acting; quality and number of voices depend on the computer, and some Linux browsers have none. It has not been checked by ear. Combat in Pygame has sound effects but no voice.
+- **Autoplay:** browsers block sound until a tap, so a first-visit intro starts with subtitles.
+- **Log out** only ends this browser's session. It is not a password system: anyone using the computer can pick any saved campaign.
+- **Other nations** use templated mission briefings, three early messages, and aircraft from their own three designs. Their balance has not been tuned, and a rank 1 nation cannot climb the joint ranking.
+- **Misunderstandings** have three incident types with templated reactions, and appear after the 2nd and 6th mission of a stage or, rarely, with hostile nations. War uses two mission types; casualties are abstract fictional counts.
 - **Joint ranking:** the competitive rank is stage progression, not a strength ordering, so strength numbers on the ladder need not follow rank order. A later withdrawal or expiry lowers actual strength but keeps the earned place. National military scores are fixed data; nothing in play changes them yet.
 - **Treaties:** proposals are menu choices with templated objections; the player cannot write a custom counter. Command authority changes only acceptance. Aircraft basing locations, weapons stocks and army cooperation are not modelled. "Ammunition" supply is delivered as materials.
 - **Peaceful routes** exist for Level 1 and for interception, strike and major-battle levels against a stage opponent.

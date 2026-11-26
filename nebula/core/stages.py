@@ -5,7 +5,7 @@ treaty come under joint command, and they can be grounded or withdrawn.
 """
 
 from nebula.core.intel import add_intel
-from nebula.core.state import (HOME, RuleError, add_aircraft, change_relation, change_reputation,
+from nebula.core.state import (RuleError, add_aircraft, home, change_relation, change_reputation,
                                change_trust, clamp, gain, log, record, relation, stats)
 from nebula.data.aircraft import AIRCRAFT
 from nebula.data.campaign import CHAPTERS
@@ -13,7 +13,20 @@ from nebula.data.characters import LEADERS, AIR_CHIEFS
 from nebula.data.countries import COUNTRIES
 from nebula.data.treaty import AIR_TERMS, DEFENSIVE_TYPES, OBJECTIONS, PRIORITY, TERMS
 
-STAGE_OPPONENTS = [c for c, _, _ in CHAPTERS[:9]]
+STAGE_OPPONENTS = [c for c, _, _ in CHAPTERS[:9]]  # the authored Lumeris ladder
+
+
+def national_order() -> list[str]:
+    return sorted(COUNTRIES, key=lambda c: -COUNTRIES[c]["military"])
+
+
+def opponents(nation: str) -> list[str]:
+    """The other nine nations, weakest first. For Lumeris this is the authored ladder."""
+    return [c for c in reversed(national_order()) if c != nation]
+
+
+def start_rank(state) -> int:
+    return national_order().index(home(state)) + 1
 SUPPLIES = {"none": (0, 0), "modest": (100, 60), "large": (200, 120)}  # fuel, materials at signing
 DAILY = {"none": (0, 0), "modest": (8, 4), "large": (16, 8)}
 BASE_RANGE_RELIEF = {"none": 0, "selected": 2, "wide": 5}
@@ -40,8 +53,10 @@ def air_ratings(state) -> dict:
     """Combat-aircraft capability of every command, from actual inventories."""
     from nebula.data.forces import INVENTORY
 
-    result = {HOME: sum(rating(stats(p)) for p in state["fleet"] if not grounded(state, p))}
+    result = {home(state): sum(rating(stats(p)) for p in state["fleet"] if not grounded(state, p))}
     for country, counts in INVENTORY.items():
+        if country == home(state):
+            continue
         lent = sum(rating(AIRCRAFT[p["type"]]) for p in state["fleet"]
                    if p.get("owner") == country and not grounded(state, p))
         result[country] = sum(rating(AIRCRAFT[k]) * n for k, n in counts.items()) - lent
@@ -55,14 +70,14 @@ def signed_stages(state) -> int:
 
 def joint_rank(state) -> int:
     """Competitive position: one place per stage treaty. It never alters strength."""
-    return 10 - signed_stages(state)
+    return max(1, start_rank(state) - signed_stages(state))
 
 
 def air_ranking(state) -> list[dict]:
     """The competitive ladder, each entry carrying its actual calculated strength."""
     ratings = air_ratings(state)
-    order = STAGE_OPPONENTS[::-1]
-    order.insert(joint_rank(state) - 1, HOME)
+    order = [c for c in national_order() if c != home(state)]
+    order.insert(joint_rank(state) - 1, home(state))
     return [{"country": c, "rating": ratings[c]} for c in order]
 
 
@@ -83,11 +98,11 @@ def reports(state) -> dict:
 
 def track_rank(state):
     rank = joint_rank(state)
-    old = state.get("joint_rank", 10)
+    old = state.get("joint_rank", start_rank(state))
     if rank != old:
         state["joint_rank"] = rank
         remember(state, f"Joint air-command ranking moved from {old} to {rank}")
-        log(state, "rank_change", previous=old, new=rank, rating=air_ratings(state)[HOME])
+        log(state, "rank_change", previous=old, new=rank, rating=air_ratings(state)[home(state)])
 
 
 def stage_complete(state, stage: int) -> bool:
@@ -105,7 +120,7 @@ def _check_stage(state, stage: int) -> str:
         raise RuleError("That stage has no treaty")
     if not stage_complete(state, stage):
         raise RuleError("Complete all ten missions of this stage first")
-    country = STAGE_OPPONENTS[stage - 1]
+    country = opponents(home(state))[stage - 1]
     if joint(state).get(country, {}).get("status") in ("active", "restricted"):
         raise RuleError("A joint command treaty is already in force")
     return country
@@ -175,6 +190,8 @@ def _voices(country, before, after=None):
 
 def propose(state, stage: int, terms: dict) -> str:
     country = _check_stage(state, stage)
+    if country in state.get("wars", {}):
+        raise RuleError("You are at war with this nation. Agree a ceasefire first, or postpone.")
     terms = clean_terms(terms)
     margin = willingness(state, country) - burden(country, terms)
     counter = None if margin >= 0 or margin < -22 else _counter(country, terms, willingness(state, country))
@@ -195,7 +212,7 @@ def propose(state, stage: int, terms: dict) -> str:
     if outcome == "reject":
         change_trust(state, country, -6)
         change_relation(state, country, -4, reason="unfair_proposal")
-        remember(state, f"{name} rejected Lumeris' proposed terms")
+        remember(state, f"{name} rejected your proposed terms")
         return f"{name} rejected those terms. Distrust has grown."
     return f"{name} sent a counteroffer."
 

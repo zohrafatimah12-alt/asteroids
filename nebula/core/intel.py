@@ -2,7 +2,7 @@
 
 import random
 
-from nebula.core.state import FOREIGN, RuleError, change_relation, change_trust, log, record, spend
+from nebula.core.state import RuleError, change_relation, change_trust, log, record, spend
 from nebula.data.aircraft import AIRCRAFT
 from nebula.data.countries import COUNTRIES
 from nebula.data.geography import AIRBASES
@@ -27,7 +27,7 @@ def add_intel(state, country: str, subject: str, amount: float, source: str):
 
 
 def operate(state, country: str, subject: str, method: str) -> str:
-    if country not in FOREIGN or subject not in SUBJECTS:
+    if country not in state["intel"] or subject not in SUBJECTS:
         raise RuleError("Unknown intelligence target")
     if state["intel"][country].get(subject, 0) >= 1:
         raise RuleError("Already fully confirmed")
@@ -90,7 +90,7 @@ def report(state, country: str) -> dict:
 def tracks(state) -> list[dict]:
     """Aircraft movements visible this day, only where we have some intelligence."""
     result = []
-    for country in FOREIGN:
+    for country in state["intel"]:
         conf = max(state["intel"][country].get("aircraft", 0),
                    state["intel"][country].get("bases", 0))
         bases = [b for b in AIRBASES if b[2] == country]

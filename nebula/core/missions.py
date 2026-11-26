@@ -2,12 +2,12 @@
 
 import random
 
-from nebula.core import stages
+from nebula.core import conflict, stages
 from nebula.core.intel import add_intel
-from nebula.core.state import (FOREIGN, HOME, RuleError, change_relation, change_reputation,
+from nebula.core.state import (RuleError, home as home_of, change_relation, change_reputation,
                                change_trust, find_plane, gain, log, record, relation, spend, stats)
 from nebula.core.world import advance_day
-from nebula.data.campaign import levels
+from nebula.data.campaign import TEMPLATES, levels
 from nebula.data.countries import COUNTRIES
 
 # type: (label, objective template, recommended airframe categories)
@@ -43,7 +43,7 @@ def _choice(key, label, text, cost=None, **effects):
 # Effects: trust, relation, reputation, intel, research, credits, materials, needs (min score)
 CHOICES = {
     "diplomacy": [
-        _choice("honest", "Speak openly", "Share what Lumeris knows. Works when they already trust you a little.",
+        _choice("honest", "Speak openly", "Share what you know. Works when they already trust you a little.",
                 needs=36, trust=9, relation=8, reputation=3),
         _choice("incentive", "Offer a partnership package", "Pay for joint projects. Reliable but expensive.",
                 {"credits": 120, "materials": 30}, trust=6, relation=7, reputation=1),
@@ -61,7 +61,7 @@ CHOICES = {
     "economy": [
         _choice("invest", "Invest in shared infrastructure", "Costs now, builds lasting trust.",
                 {"credits": 150, "materials": 40}, trust=10, relation=8, reputation=4, research=30),
-        _choice("sacrifice", "Sacrifice Lumeris' own reserves", "A deep sacrifice every nation will remember.",
+        _choice("sacrifice", "Sacrifice your own reserves", "A deep sacrifice every nation will remember.",
                 {"credits": 220, "fuel": 120}, trust=14, relation=10, reputation=8, sacrifice=1),
         _choice("frugal", "Protect the treasury", "Keep your reserves. Partners notice.",
                 trust=-5, credits=100),
@@ -69,7 +69,7 @@ CHOICES = {
     "research": [
         _choice("joint", "Open joint research", "Publish everything and work together.",
                 {"credits": 80}, trust=8, relation=6, reputation=3, research=50),
-        _choice("home", "Keep it in Lumeris", "Larger gain for you, less goodwill.",
+        _choice("home", "Keep it at home", "Larger gain for you, less goodwill.",
                 {"materials": 40}, trust=-4, research=80),
         _choice("data", "Prioritise observation data", "Learn about their capabilities while you work.",
                 {"credits": 60}, intel=0.35, research=35),
@@ -77,10 +77,17 @@ CHOICES = {
 }
 
 
-def definition(level: int) -> dict:
+def definition(level: int, home: str = "lumeris") -> dict:
     if not 1 <= level <= 100:
         raise RuleError("There is no such level")
     m = levels()[level - 1]
+    if home != "lumeris" and m["chapter"] <= 9:
+        foe = stages.opponents(home)[m["chapter"] - 1]
+        name, text = TEMPLATES[m["type"]]
+        place = COUNTRIES[foe]["cities"][level % 3]
+        m = {**m, "country": foe, "chapter_title": COUNTRIES[foe]["name"],
+             "title": f"{name} · {COUNTRIES[foe]['name']}",
+             "story": text.format(foe=COUNTRIES[foe]["name"], home=COUNTRIES[home]["name"], place=place)}
     kind, country = m["type"], m["country"]
     c = COUNTRIES[country]
     difficulty = round(1 + (level - 1) * 7 / 99 + (0.4 if kind == "battle" else 0), 2)
@@ -98,8 +105,8 @@ def definition(level: int) -> dict:
     stage = m["chapter"]
     opponent = country if stage <= 9 else None
     antagonist = opponent if level == 1 or kind in OPPOSED_TYPES else None
-    # Stage 1 is fought over Lumeris' own south-eastern corridor.
-    place = COUNTRIES[HOME] if stage == 1 else c
+    # The authored Stage 1 is fought over Lumeris' own south-eastern corridor.
+    place = COUNTRIES[home] if stage == 1 and home == "lumeris" else c
     locations = [place["capital"], *place["cities"][1:]]
     combat = kind not in STRATEGIC_TYPES
     reward = {"credits": 90 + 3 * level, "materials": 40 + level, "research": 12 + level // 2,
@@ -115,19 +122,26 @@ def definition(level: int) -> dict:
         "requirements": ({"min_condition": 35, "fuel": 25, "min_range": 30 + level // 5,
                           "recommended": categories} if combat else {}),
         "diplomatic_consequence": ("Success raises trust at home and morale across Veyra."
-                                   if country == HOME else
+                                   if country == home else
                                    f"Success raises {host}'s trust; failure lowers it."),
         "intel_consequence": ("Reveals observations about the falling object."
                               if level in THREAT_STAGES else
-                              "No strategic intelligence expected." if country == HOME else
+                              "No strategic intelligence expected." if country == home else
                               f"Success adds intelligence on {host}."),
         "choices": [] if combat else CHOICES[kind],
     }
 
 
+def mission_for(state, level: int) -> dict:
+    """A campaign level, or (101+) the next sortie of an active war."""
+    if level > 100:
+        return conflict.war_mission(state, level)
+    return definition(level, home_of(state))
+
+
 def peaceful_option(state, mission) -> dict | None:
     foe = mission["antagonist"]
-    if not foe:
+    if not foe or foe in state.get("wars", {}):
         return None
     available = "peace" in state["treaties"][foe] or (relation(state, foe) >= 15 and state["trust"][foe] >= 45)
     return {"country": foe, "available": available,
@@ -137,6 +151,9 @@ def peaceful_option(state, mission) -> dict | None:
 def check_level(state, level: int):
     if state["ending"]:
         raise RuleError("This campaign has ended")
+    if level > 100:
+        conflict.war_mission(state, level)  # raises unless that war is active
+        return
     stages.check_unlocked(state, level)
     if level > state["unlocked"]:
         raise RuleError("Complete the previous level first")
@@ -160,6 +177,9 @@ def check_aircraft(state, mission, uid: int) -> dict:
 
 def _complete(state, mission, success: bool, mode: str, scale: float = 1.0):
     level, country = mission["level"], mission["country"]
+    if level > 100:
+        conflict.war_result(state, country, success)
+        return
     first = str(level) not in state["completed"]
     if success:
         share = scale if first else 0.25  # replays pay a little, to prevent soft locks
@@ -167,18 +187,19 @@ def _complete(state, mission, success: bool, mode: str, scale: float = 1.0):
         if first:
             state["completed"][str(level)] = mode
             state["unlocked"] = min(100, max(state["unlocked"], level + 1))
-            if country == HOME or (mission["antagonist"] == country and mode != "peaceful"):
+            if country == home_of(state) or (mission["antagonist"] == country and mode != "peaceful"):
                 # Beating a rival's aircraft earns standing at home, not their affection.
                 change_reputation(state, 1)
             else:
                 change_trust(state, country, 3)
                 change_relation(state, country, 2, reason="mission")
-            if country != HOME:
+            if country != home_of(state):
                 subject = ("strength", "weaknesses", "aircraft", "bases")[level % 4]
                 add_intel(state, country, subject, 0.3, "mission")
             if level in THREAT_STAGES:
                 state["threat"] = max(state["threat"], THREAT_STAGES[level])
-    elif country != HOME:
+            conflict.after_level(state, level, country)
+    elif country != home_of(state):
         change_trust(state, country, -2)
     log(state, "campaign_progress", level=level, success=success, mode=mode,
         completed=len(state["completed"]))
@@ -193,7 +214,7 @@ def _attempt(state, mission, mode, success, aircraft=None, **perf):
 
 def apply_combat(state, level: int, uid: int, result: dict, mode: str = "flown") -> str:
     """Apply a sortie outcome to aircraft, resources and the campaign."""
-    mission = definition(level)
+    mission = mission_for(state, level)
     check_level(state, level)
     plane = find_plane(state, uid)
     success = bool(result["success"])
@@ -219,8 +240,8 @@ TACTICS = {
                "Picket aircraft widen your radar by a quarter on the next sortie.",
                "Spends fuel even if you never launch."),
     "support": ("Request allied support", {"credits": 60},
-                "An Aerovant wingman joins your next sortie. Needs Aerovant trust 52+.",
-                "Costs credits and a little Aerovant goodwill. The wingman can be shot down."),
+                "A friendly wingman joins your next sortie. Needs 52+ trust from Aerovant (Drakoria if you are Aerovant).",
+                "Costs credits and a little goodwill. The wingman can be shot down."),
 }
 
 
@@ -229,12 +250,13 @@ def prepare(state, key: str) -> str:
         raise RuleError("Unknown preparation")
     if key in state.get("tactics", []):
         raise RuleError("Already arranged for the next sortie")
-    if key == "support" and state["trust"]["aerovant"] < 52:
-        raise RuleError("Aerovant does not trust you enough yet")
+    helper = "drakoria" if home_of(state) == "aerovant" else "aerovant"
+    if key == "support" and state["trust"][helper] < 52:
+        raise RuleError(f"{COUNTRIES[helper]['name']} does not trust you enough yet")
     label, cost, _, _ = TACTICS[key]
     spend(state, f"tactics:{key}", **cost)
     if key == "support":
-        change_relation(state, "aerovant", -2, reason="support_request")
+        change_relation(state, helper, -2, reason="support_request")
     state.setdefault("tactics", []).append(key)
     log(state, "player_decision", choice=key, context="tactics")
     return f"{label} arranged for the next flown sortie."
@@ -242,7 +264,8 @@ def prepare(state, key: str) -> str:
 
 def debrief(before: dict, after: dict, level: int, result: dict | None = None) -> dict:
     """What changed, computed by comparing real state before and after a mission."""
-    mission = definition(level)
+    mission = mission_for(after, level) if level <= 100 else \
+        {"title": "War mission", "objectives": ["War sortie"]}
     attempt = next((row for table, row in reversed(after["_records"])
                     if table == "mission_attempts"), {})
     delta = lambda a, b: {k: b[k] - a[k] for k in a if b[k] != a[k]}
@@ -275,7 +298,7 @@ def success_chance(state, mission, plane) -> float:
 
 def delegate(state, level: int, uid: int) -> str:
     """Command a wing leader to fly the sortie: an odds-based, clearly-labelled simulation."""
-    mission = definition(level)
+    mission = mission_for(state, level)
     check_level(state, level)
     if not mission["combat"]:
         raise RuleError("This is a strategic mission")
@@ -288,7 +311,7 @@ def delegate(state, level: int, uid: int) -> str:
 
 
 def resolve_peacefully(state, level: int) -> str:
-    mission = definition(level)
+    mission = mission_for(state, level)
     check_level(state, level)
     option = peaceful_option(state, mission)
     if not option or not option["available"]:
@@ -307,7 +330,7 @@ def resolve_peacefully(state, level: int) -> str:
 
 
 def decide(state, level: int, choice_id: str) -> tuple[bool, str]:
-    mission = definition(level)
+    mission = mission_for(state, level)
     check_level(state, level)
     choice = next((c for c in mission["choices"] if c["id"] == choice_id), None)
     if not choice:
@@ -317,7 +340,7 @@ def decide(state, level: int, choice_id: str) -> tuple[bool, str]:
     effects, country = choice["effects"], mission["country"]
     first = str(level) not in state["completed"]
     # At home the audience is the Council, whose confidence follows your reputation.
-    standing = state["reputation"] if country == HOME else (
+    standing = state["reputation"] if country == home_of(state) else (
         state["trust"][country] + 0.4 * relation(state, country) + 0.3 * (state["reputation"] - 50))
     success = standing >= effects.get("needs", -999)
     _attempt(state, mission, "decision", success)
@@ -328,7 +351,7 @@ def decide(state, level: int, choice_id: str) -> tuple[bool, str]:
     log(state, "decision_choice", type=mission["type"], choice=choice_id, success=success)
     if success and first:
         change_reputation(state, effects.get("reputation", 0))
-        if country != HOME:
+        if country != home_of(state):
             change_trust(state, country, effects.get("trust", 0))
             change_relation(state, country, effects.get("relation", 0), reason="decision")
             if "intel" in effects:

@@ -1,11 +1,12 @@
 """Commander identity: opening philosophy, conversations, rankings, advice."""
 
 from nebula.core.intel import add_intel
-from nebula.core.state import (HOME, RuleError, change_relation, change_reputation, change_trust,
+from nebula.core.state import (RuleError, change_relation, change_reputation, change_trust, home,
                                gain, log, spend, stats)
 from nebula.data.characters import CHARACTERS, public
 from nebula.data.countries import COUNTRIES
-from nebula.data.messages import MESSAGES
+from nebula.data.messages import messages_for
+from nebula.core import missions, stages
 
 # Philosophies never touch military rank or the first opponent.
 PHILOSOPHIES = {
@@ -17,7 +18,7 @@ PHILOSOPHIES = {
                       "vk_head": "Words are cheap when your sky is empty."},
         "advice": "You chose diplomacy first. Look for a message or treaty before a launch."},
     "defence": {
-        "name": "Strategic Defence", "text": "Protect Lumeris and strengthen its defensive capabilities.",
+        "name": "Strategic Defence", "text": "Protect your nation and strengthen its defensive capabilities.",
         "reputation": 3, "trust": 2, "resources": {"materials": 60},
         "reactions": {"lu_army": "Hold what is ours. I can work with that.",
                       "lu_dip": "Defence is a language neighbours understand. Let us add others.",
@@ -56,7 +57,7 @@ def remember(state, text: str):
 def inbox(state) -> list[dict]:
     answered = state.get("replies", {})
     out = []
-    for m in MESSAGES:
+    for m in messages_for(home(state), stages.opponents(home(state))[0]):
         if "after" in m:
             source, wanted = m["after"]
             if source not in answered or (wanted and answered[source] != wanted):
@@ -84,7 +85,8 @@ def reply(state, message_id: str, reply_id: str) -> str:
     entry = next((m for m in inbox(state) if m["id"] == message_id), None)
     if not entry or entry["answer"]:
         raise RuleError("That message is not awaiting a reply")
-    message = next(m for m in MESSAGES if m["id"] == message_id)
+    foe = stages.opponents(home(state))[0]
+    message = next(m for m in messages_for(home(state), foe) if m["id"] == message_id)
     choice = next((r for r in message["replies"] if r["id"] == reply_id), None)
     if not choice:
         raise RuleError("Unknown reply")
@@ -92,16 +94,16 @@ def reply(state, message_id: str, reply_id: str) -> str:
         spend(state, "communication:reply", **choice["cost"])
     sender = CHARACTERS[message["from"]]
     effects = choice["effects"]
-    if sender["country"] != HOME:
+    if sender["country"] != home(state):
         change_relation(state, sender["country"], effects.get("relation", 0), reason="message")
         change_trust(state, sender["country"], effects.get("trust", 0))
     elif "relation" in effects:  # home advisers acting on the first opponent
-        change_relation(state, "zorvania", effects["relation"], reason="message")
+        change_relation(state, foe, effects["relation"], reason="message")
     change_reputation(state, effects.get("reputation", 0))
     gain(state, "communication:outcome",
          **{k: v for k, v in effects.items() if k in ("materials", "research", "credits", "fuel")})
     if "intel" in effects:
-        add_intel(state, "zorvania", "aircraft", effects["intel"], "intercept")
+        add_intel(state, foe, "aircraft", effects["intel"], "intercept")
     state.setdefault("replies", {})[message_id] = reply_id
     remember(state, f"To {sender['name']}: \"{choice['text']}\"")
     log(state, "player_decision", choice=reply_id, context=f"message:{message_id}")
@@ -119,6 +121,42 @@ def air_power(state) -> int:
                      * p["condition"] / 100 for p in state["fleet"]))
 
 
+def next_objective(state) -> str:
+    """One short line: what to do now."""
+    wars = state.get("wars", {})
+    if any(i["status"] == "open" for i in state.get("incidents", [])):
+        return "Respond to the misunderstanding"
+    if wars:
+        return f"War with {COUNTRIES[next(iter(wars))]['name']}: fight or seek a ceasefire"
+    if state["ending"]:
+        return "Campaign complete"
+    level = state["unlocked"]
+    for stage in range(1, 10):
+        if str(stage * 10) in state["completed"] and str(stage) not in state.get("stage_reports", {}):
+            return f"Negotiate or postpone the Stage {stage} treaty"
+    if "100" in state["completed"]:
+        return "Make the final decision"
+    return f"Level {level}: {missions.definition(level, home(state))['title']}"
+
+
+def next_objective(state) -> str:
+    """One short line: what to do now."""
+    wars = state.get("wars", {})
+    if any(i["status"] == "open" for i in state.get("incidents", [])):
+        return "Respond to the misunderstanding"
+    if wars:
+        return f"War with {COUNTRIES[next(iter(wars))]['name']}: fight or seek a ceasefire"
+    if state["ending"]:
+        return "Campaign complete"
+    level = state["unlocked"]
+    for stage in range(1, 10):
+        if str(stage * 10) in state["completed"] and str(stage) not in state.get("stage_reports", {}):
+            return f"Negotiate or postpone the Stage {stage} treaty"
+    if "100" in state["completed"]:
+        return "Make the final decision"
+    return f"Level {level}: {missions.definition(level, home(state))['title']}"
+
+
 def advice(state) -> list[str]:
     """Uses only what the player can already see."""
     tips = []
@@ -132,7 +170,8 @@ def advice(state) -> list[str]:
     if state["resources"]["fuel"] < 100:
         tips.append("Fuel reserves are low. Reconnaissance and refuelling both draw on them.")
     if not state["completed"]:
-        if not state["intel"]["zorvania"]:
-            tips.append("You know little about Zorvania. Analyse its signals before you commit.")
+        foe = stages.opponents(home(state))[0]
+        if not state["intel"][foe]:
+            tips.append(f"You know little about {COUNTRIES[foe]['name']}. Analyse its signals before you commit.")
         tips.append("Open the Level 1 briefing when ready. Diplomacy may prevent losses.")
     return tips or ["No urgent concerns. Check the campaign for your next mission."]

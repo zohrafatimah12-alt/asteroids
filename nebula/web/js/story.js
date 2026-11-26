@@ -1,83 +1,27 @@
 // Cinematic introduction, command centre, conversations and mission debrief.
-import { S, act, go } from "./app.js";
+import { S, go } from "./app.js";
+import { voiceBar, bindVoice } from "./voice.js";
 import { esc, cap, flag } from "./ui.js";
 import { airChart } from "./stages.js";
-import { portrait, star, planet, commandRoom, ambience } from "./art.js";
+import { portrait, commandRoom } from "./art.js";
 
 const G = () => S.game, nation = id => G().countries[id];
 const person = id => S.world.characters[id];
 const rankOf = id => G().ranking.indexOf(id) + 1;
 export const face = (id, size) => portrait(person(id), nation(person(id).country).colors, size);
+const home = () => G().home;
+const chief = () => S.world.air_chiefs[home()];
+const officer = () => home() === "lumeris" ? "lu_officer" : chief();
 const speech = (id, text) => `<div class="speech">${face(id, 104)}<div><div class="gold small">${esc(nation(person(id).country).name.toUpperCase())} · ${esc(person(id).role.toUpperCase())}</div><b>${esc(person(id).name)}</b><p class="type" data-text="${esc(text)}">${esc(text)}</p></div></div>`;
 
-export const rankChart = () => `<div class="ranks">${G().ranking.map((c, i) => `<div class="rank ${c === "lumeris" ? "mine" : i === 8 ? "foe" : ""}" style="animation-delay:${i * .09}s"><b>${i + 1}</b>${flag(nation(c))}<span>${esc(nation(c).name)}</span><span class="small dim">${c === "lumeris" ? "your command" : i === 8 ? "first opponent" : ""}</span></div>`).join("")}</div>`;
-
-const talk = (id, text) => ({ id, text });
-const SCENES = [
-  () => `${star()}<h2>NEBULA</h2><p class="caption">A star far beyond the Milky Way. For ten thousand years it has been the one certain thing in every sky.</p>`,
-  () => `${planet(S.world, G().countries)}<h2>VEYRA</h2><p class="caption">Its one living world. Pale oceans, a single great continent, a chain of isles, and ten nations that do not agree.</p>`,
-  ...["lumeris", "aerovant", "varkhen", "elyndra", "zorvania", "thalmora", "kryvos", "frostara", "drakoria", "ostraven"].map((c, i) => () => {
-    const n = nation(c), lead = S.world.leaders[c];
-    return `<div class="reveal">${planet(S.world, G().countries, c)}<div>${flag(n)}<h2>${esc(n.name.toUpperCase())}</h2><p class="small gold">Nation ${i + 1} of 10 · Capital ${esc(n.capital)}</p><div class="speech">${face(lead, 96)}<div><b>${esc(person(lead).name)}</b><div class="dim">${esc(person(lead).role)}</div></div></div><p>${esc(n.geography)}.</p><p class="dim">Known for ${esc(n.strengths.join(" and "))}. Cities: ${esc(n.cities.join(", "))}.</p></div></div>`;
-  }),
-  ...[talk("lu_pres", "Something is changing along our south-eastern border. Our intelligence reports are incomplete."),
-    talk("lu_air", "Our aircraft are not prepared for a large-scale confrontation. We need more time."),
-    talk("lu_intel", "We intercepted a communication suggesting that the ninth-ranked nation is preparing a military operation. One source. I would not stake lives on it yet."),
-    talk("ae_head", "We advise restraint. A military confrontation could destabilise the entire region."),
-    talk("vk_head", "Lumeris should understand that military weakness has consequences."),
-    talk("zv_head", "Our survey flights are lawful research. It would be unfortunate if anyone treated them otherwise.")].map(t => () => speech(t.id, t.text)),
-  () => `<div class="letter"><div class="small gold">OFFICE OF THE PRESIDENT · ELOWEN</div><h2>Letter of Appointment</h2><p>To <b>${esc(G().player)}</b>:</p><p>By decision of the Civic Council you are appointed Commander of the Lumeris Skywatch, effective today. You inherit few aircraft, a thin treasury, and our complete need of you.</p><p><i>Isaveth Orrin, President</i></p></div>`,
-  "choice",
-  () => `<h2>The Balance of Power</h2>${rankChart()}<p class="caption">Order of national military strength. Lumeris is tenth. Zorvania, ninth, is the first opponent.</p>`,
-  () => speech("lu_air", "That gap is real, Commander. Two serviceable airframes against a service built on seeing us first. We win by choosing when, and whether, to fight."),
-  () => `${commandRoom(S.world, G().countries)}<h2>Your Command Centre</h2><p class="caption">Elowen. The map table is live, your advisers are waiting, and the first briefing is on your desk.</p>`,
-];
-const CHOICE = SCENES.indexOf("choice");
-let scene = 0, timer;
-
-export function startIntro() { scene = 0; go("intro"); }
-
-export function intro(el) {
-  const volume = Number(localStorage.getItem("nebula.volume") ?? 0.5), muted = localStorage.getItem("nebula.sound") === "off";
-  const choosing = SCENES[scene] === "choice";
-  const body = !choosing ? SCENES[scene]() : G().philosophy
-    ? `<h2>On Record</h2><p class="caption">You chose ${esc(S.world.philosophies[G().philosophy].name)}.</p><div class="reactions">${Object.entries(S.world.philosophies[G().philosophy].reactions).map(([id, t]) => speech(id, t)).join("")}</div>`
-    : `<h2>WHAT KIND OF COMMANDER WILL YOU BE?</h2><p class="dim">This is recorded permanently. It does not change your rank or your first opponent.</p><div class="grid choices">${Object.entries(S.world.philosophies).map(([k, p]) => `<button data-philosophy="${k}"><b>${esc(p.name)}</b><span>${esc(p.text)}</span><span class="small gold">Reputation ${p.reputation >= 0 ? "+" : ""}${p.reputation} · trust ${p.trust >= 0 ? "+" : ""}${p.trust}${Object.entries(p.resources).map(([r, v]) => ` · ${r} +${v}`).join("")}</span></button>`).join("")}</div>`;
-  el.innerHTML = `<section class="film"><div class="shot">${body}</div><div class="controls"><button data-step="-1" ${scene ? "" : "disabled"}>◂ Back</button><span class="dim small">${scene + 1} / ${SCENES.length}</span>
-  <button class="primary" data-step="1" ${choosing && !G().philosophy ? "disabled" : ""}>${scene === SCENES.length - 1 ? "Enter command ▸" : "Continue ▸"}</button><button data-skip>Skip intro</button><button data-replay>Replay</button>
-  <label class="small"><input type="checkbox" data-mute ${muted ? "checked" : ""}> Mute</label><label class="small">Music <input type="range" min="0" max="1" step="0.05" value="${volume}" data-volume></label></div></section>`;
-  return () => {
-    clearInterval(timer);
-    const line = el.querySelector(".type");
-    if (line && !document.body.classList.contains("calm") && el.querySelectorAll(".type").length === 1) {
-      const full = line.dataset.text; let n = 0;
-      line.textContent = "";
-      timer = setInterval(() => { line.textContent = full.slice(0, n += 2); if (n >= full.length) clearInterval(timer); }, 28);
-      line.onclick = () => { clearInterval(timer); line.textContent = full; };
-    }
-    const sound = () => ambience(el.querySelector("[data-mute]").checked ? 0 : Number(el.querySelector("[data-volume]").value));
-    el.querySelector("[data-mute]").onchange = e => { localStorage.setItem("nebula.sound", e.target.checked ? "off" : "on"); sound(); };
-    el.querySelector("[data-volume]").oninput = e => { localStorage.setItem("nebula.volume", e.target.value); sound(); };
-    const move = to => {
-      clearInterval(timer);
-      if (to >= SCENES.length) { ambience(0); go("hq"); return; }
-      scene = to; sound(); go("intro");
-    };
-    el.querySelectorAll("[data-step]").forEach(b => b.onclick = () => move(scene + Number(b.dataset.step)));
-    // Skipping still stops at the one decision the campaign needs.
-    el.querySelector("[data-skip]").onclick = () => move(G().philosophy ? SCENES.length : CHOICE);
-    el.querySelector("[data-replay]").onclick = () => move(0);
-    el.querySelectorAll("[data-philosophy]").forEach(b => b.onclick = () => act("philosophy", { kind: b.dataset.philosophy }));
-  };
-}
+export const rankChart = () => `<div class="ranks">${G().ranking.map((c, i) => `<div class="rank ${c === home() ? "mine" : c === G().stages[0].country ? "foe" : ""}" style="animation-delay:${i * .09}s"><b>${i + 1}</b>${flag(nation(c))}<span>${esc(nation(c).name)}</span><span class="small dim">${c === home() ? "your command" : c === G().stages[0].country ? "first opponent" : ""}</span></div>`).join("")}</div>`;
 
 const store = key => localStorage.getItem(`nebula.${key}.${G().id}`);
 export const mark = key => localStorage.setItem(`nebula.${key}.${G().id}`, "1");
 const TRAINING = () => [
-  ["Declare your command philosophy", !!G().philosophy, "intro"],
   ["Study Veyra and its ten nations on the world map", !!store("seen.map"), "map"],
   ["Answer a message", Object.keys(G().replies ?? {}).length > 0, "inbox"],
-  ["Learn something about Zorvania", Object.values(nation("zorvania").intel).some(v => v.confidence > 0), "intel"],
+  [`Learn something about ${nation(G().stages[0].country).name}`, Object.values(nation(G().stages[0].country).intel).some(v => v.confidence > 0), "intel"],
   ["Inspect your aircraft, fuel and ammunition", !!store("seen.hangar"), "hangar"],
   ["Complete the first mission", !!G().completed[1], "briefing"],
 ];
@@ -85,9 +29,10 @@ const TRAINING = () => [
 export function hq(el) {
   const steps = TRAINING(), done = steps.filter(s => s[1]).length, next = steps.find(s => !s[1]);
   const unread = G().inbox.filter(m => !m.answer).length;
-  el.innerHTML = `${commandRoom(S.world, G().countries)}<div class="grid" style="margin-top:14px">
-  <div class="panel"><h3>Your adviser</h3>${speech("lu_officer", G().advice[0])}${G().advice.slice(1).map(a => `<p class="dim">${esc(a)}</p>`).join("")}</div>
-  <div class="panel"><h3>Commander ${esc(G().player)}</h3><p>National military rank <b class="gold">${rankOf("lumeris")} of 10</b><br>Joint air-force rank <b class="gold">${G().air_ranking.findIndex(r => r.country === "lumeris") + 1} of 10</b></p><p>Reputation <b>${G().reputation}</b> · Air command rating <b>${G().air_power}</b> <span class="small dim">(your own airframes, weighted by condition)</span></p>
+  el.innerHTML = `${commandRoom(S.world, G().countries, home())}<div class="panel objective"><span class="small dim">NEXT OBJECTIVE</span><b>${esc(G().next_objective)}</b>
+  <button class="primary" data-go="${G().incidents.some(i => i.status === "open") || G().wars.length ? "crisis" : G().next_objective.startsWith("Negotiate") ? "joint" : "briefing"}">Go ▸</button></div><div class="grid" style="margin-top:14px">
+  <div class="panel"><h3>Your adviser</h3>${speech(officer(), G().advice[0])}${G().advice.slice(1).map(a => `<p class="dim">${esc(a)}</p>`).join("")}</div>
+  <div class="panel"><h3>Commander ${esc(G().player)}</h3><p>National military rank <b class="gold">${rankOf(home())} of 10</b><br>Joint air-force rank <b class="gold">${G().joint_rank} of 10</b></p><p>Reputation <b>${G().reputation}</b> · Air command rating <b>${G().air_power}</b> <span class="small dim">(your own airframes, weighted by condition)</span></p>
   <p>${G().philosophy ? esc(S.world.philosophies[G().philosophy].name) : "No philosophy declared"} · ${Object.keys(G().completed).length}/100 levels</p>
   <div class="row"><button class="primary" data-go="briefing">Mission briefing ▸</button><button data-go="inbox">Inbox (${unread})</button>${G().last_debrief ? `<button data-go="debrief">Last debrief</button>` : ""}</div></div>
   ${store("training.off") ? `<div class="panel"><h3>Training</h3><button data-training="">Replay training</button></div>` : `<div class="panel"><h3>Commander training ${done}/${steps.length}</h3>${steps.map(([t, ok, where]) => `<div class="row between"><span class="${ok ? "good" : ""}">${ok ? "✔" : "○"} ${esc(t)}</span>${next && next[0] === t ? `<button class="on" data-go="${where}">Go</button>` : ""}</div>`).join("")}<button data-training="1">Skip training</button></div>`}
@@ -134,7 +79,8 @@ function opener(m) {
 
 // Level 1 dossier and the beginner's guide to every option.
 export function dossier(m) {
-  if (m.level !== 1) return m.level % 10 === 1 && m.opponent ? opener(m) : "";
+  if (m.level > 100) return "";  // war sorties have no stage dossier
+  if (m.level !== 1 || home() !== "lumeris") return m.level % 10 === 1 && m.opponent ? opener(m) : "";
   const z = nation("zorvania"), known = z.intel;
   const show = r => r.value == null ? `<span class="tag unknown">unknown</span>` : `${esc([].concat(r.value).join(", "))} <span class="tag ${r.level}">${r.level}</span>`;
   return `<div class="panel" style="margin-top:12px"><h3>Opponent dossier</h3><div class="row">${flag(z)}<b>Zorvania · national rank ${rankOf("zorvania")}</b></div>
@@ -160,7 +106,11 @@ export function debrief(el) {
   el.innerHTML = `<div class="panel"><span class="dim">Level ${d.level} · ${esc(d.title)} · resolved: ${esc(d.mode)}</span><h2 class="${d.success ? "good" : "bad"}">${d.success ? "MISSION ACCOMPLISHED" : "MISSION FAILED"}</h2>
   <table><tr><th>Objective</th><td>${d.success ? "✔" : "✘"} ${esc(d.objectives.join("; "))}</td></tr><tr><th>Enemy aircraft destroyed by you</th><td>${na(d.enemy_lost)}</td></tr><tr><th>Friendly wingmen lost</th><td>${na(d.wingman_lost)}</td></tr><tr><th>Hull damage %</th><td>${na(d.damage)}</td></tr><tr><th>Ammunition used</th><td>${na(d.ammo_used)}</td></tr><tr><th>Fuel used by aircraft</th><td>${na(d.fuel_used)}</td></tr>
   <tr><th>National resources (net, including daily income)</th><td>${changes(d.resources)}</td></tr><tr><th>Trust</th><td>${changes(d.trust)}</td></tr><tr><th>Reputation</th><td>${d.reputation > 0 ? "+" : ""}${d.reputation}</td></tr><tr><th>Intelligence gained</th><td>${esc(d.intel.join(", ")) || "none"}</td></tr><tr><th>Unlocked</th><td>${d.unlocked ? "Level " + d.unlocked : "nothing new"}</td></tr></table></div>
-  ${speech("lu_air", d.success ? "Everyone I am responsible for is accounted for. Well commanded." : "We recover, we repair, we go again. Look at what failed before you relaunch.")}
+  ${voiceBar()}${speech(chief(), d.success ? "Everyone I am responsible for is accounted for. Well commanded." : "We recover, we repair, we go again. Look at what failed before you relaunch.")}
+  ${G().incidents.some(i => i.status === "open") ? `<div class="panel alert"><b>A misunderstanding needs your answer.</b> <button class="primary" data-go="crisis">Open Crisis Room</button></div>` : ""}
   ${d.level % 10 === 0 && d.level < 100 && G().stages[d.level / 10 - 1].complete ? `<div class="panel"><h3>Stage ${d.level / 10} complete</h3><p>${esc(nation(G().stages[d.level / 10 - 1].country).name)} keeps its independence. Its leaders are ready to discuss a joint air command.</p><button class="primary" data-go="joint">Open the negotiating table ▸</button></div>` : ""}
   <div class="row"><button class="primary" data-go="hq">Return to command centre</button><button data-go="briefing">Next briefing</button><button data-go="analytics">Analytics</button></div>`;
+  S.ui.level = 0;
+  const line = el.querySelector(".speech p")?.textContent ?? "";
+  return () => bindVoice(el, [{ name: "Narrator", text: d.success ? "Mission accomplished." : "Mission failed." }, { id: chief(), name: person(chief()).name, text: line }]);
 }

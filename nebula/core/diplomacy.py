@@ -3,7 +3,7 @@
 import random
 
 from nebula.core import stages
-from nebula.core.state import (FOREIGN, HOME, RuleError, change_relation, change_reputation,
+from nebula.core.state import (RuleError, foreign, home, change_relation, change_reputation,
                                change_trust, gain, log, record, relation, spend)
 from nebula.data.countries import COUNTRIES
 from nebula.data.geography import DISPUTES
@@ -31,13 +31,15 @@ def _noise(state, *parts) -> int:
     return random.Random(f"{state['seed']}:{state['day']}:{':'.join(parts)}").randint(-5, 5)
 
 
-def _check_country(country: str):
-    if country not in FOREIGN:
+def _check_country(state, country: str):
+    if country not in foreign(state):
         raise RuleError("Choose a foreign nation")
 
 
 def propose(state, country: str, kind: str, sweetener: int = 0) -> tuple[bool, str]:
-    _check_country(country)
+    _check_country(state, country)
+    if country in state.get("wars", {}):
+        raise RuleError("You are at war. Only a ceasefire can be negotiated.")
     if kind not in TREATIES:
         raise RuleError("Unknown treaty")
     label, needed, prerequisite = TREATIES[kind]
@@ -60,7 +62,7 @@ def propose(state, country: str, kind: str, sweetener: int = 0) -> tuple[bool, s
     change_reputation(state, 2)
     if kind == "alliance":
         # Alliances are noticed by the ally's enemies.
-        for rival in FOREIGN:
+        for rival in foreign(state):
             if rival != country and relation(state, rival, country) <= -40:
                 change_relation(state, rival, -5, reason="rival_alliance")
     log(state, "treaty_signed", country=country, treaty=kind)
@@ -68,24 +70,28 @@ def propose(state, country: str, kind: str, sweetener: int = 0) -> tuple[bool, s
 
 
 def send_aid(state, country: str) -> str:
-    _check_country(country)
+    _check_country(state, country)
+    if country in state.get("wars", {}):
+        raise RuleError("Aid cannot cross an active front")
     spend(state, "diplomacy:aid", credits=80, materials=20)
     change_relation(state, country, 6, reason="aid")
     change_trust(state, country, 5)
     change_reputation(state, 1)
-    stages.strain(state, country, -10, "Lumeris sent aid")
+    stages.strain(state, country, -10, "you sent aid")
     log(state, "aid_sent", country=country)
     return f"Aid delivered to {COUNTRIES[country]['name']}."
 
 
 def pressure(state, country: str) -> tuple[bool, str]:
-    _check_country(country)
+    _check_country(state, country)
     backing = sum("alliance" in t for t in state["treaties"].values())
     success = (state["reputation"] + backing * 12 + _noise(state, country, "pressure") * 3
                >= COUNTRIES[country]["military"])
     change_relation(state, country, -9, reason="pressure")
     change_trust(state, country, -8)
-    stages.strain(state, country, 35, "Lumeris applied pressure to a treaty partner")
+    from nebula.core import conflict
+    conflict.break_promise(state, country, "you applied pressure")
+    stages.strain(state, country, 35, "you applied pressure to a treaty partner")
     record(state, "negotiations", country=country, kind="pressure", success=int(success), offer=0)
     if success:
         gain(state, "diplomacy:concession", credits=110)
@@ -109,11 +115,11 @@ def negotiate_dispute(state, dispute_id: str, approach: str) -> tuple[bool, str]
     _, name, a, b, _, _ = match
     if state["disputes"][dispute_id] != "open":
         raise RuleError("That dispute is already settled")
-    if approach == "concede" and HOME not in (a, b):
-        raise RuleError("Lumeris has no claim here to concede")
+    if approach == "concede" and home(state) not in (a, b):
+        raise RuleError("You have no claim here to concede")
     _, needed, cost, reputation = APPROACHES[approach]
     spend(state, "diplomacy:territory", credits=cost)
-    parties = [c for c in (a, b) if c != HOME]
+    parties = [c for c in (a, b) if c != home(state)]
     success = all(score(state, c) + _noise(state, c, dispute_id) >= needed for c in parties)
     for c in parties:
         record(state, "negotiations", country=c, kind=f"territory:{approach}",

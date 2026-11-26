@@ -34,25 +34,44 @@ def _base_relation(a: str, b: str) -> int:
     return random.Random(pair_key(a, b)).randint(-12, 18)
 
 
-def new_state(player: str, seed: int | None = None) -> dict:
+def home(state: dict) -> str:
+    """The player's nation. Saves made before nation choice are Lumeris."""
+    return state.get("home", HOME)
+
+
+def foreign(state: dict) -> list[str]:
+    return [c for c in COUNTRIES if c != home(state)]
+
+
+def new_state(player: str, seed: int | None = None, nation: str = HOME) -> dict:
+    if nation not in COUNTRIES:
+        raise RuleError("Unknown nation")
     relations = {pair_key(a, b): _base_relation(a, b)
                  for i, a in enumerate(COUNTRIES) for b in list(COUNTRIES)[i + 1:]}
-    for other, value in {"aerovant": 20, "elyndra": 25, "thalmora": 10, "ostraven": 8,
+    others = [c for c in COUNTRIES if c != nation]
+    if nation == HOME:
+        trust = dict(START_TRUST)
+    else:
+        trust = {c: int(clamp(42 + relations[pair_key(nation, c)] * 0.3, 20, 62)) for c in others}
+    for other, value in {} .items() if nation != HOME else {"aerovant": 20, "elyndra": 25, "thalmora": 10, "ostraven": 8,
                          "frostara": 6, "zorvania": -5, "kryvos": 4, "drakoria": -12,
                          "varkhen": -22}.items():
         relations[pair_key(HOME, other)] = value
     state = {
         "player": player, "seed": random.randrange(1 << 30) if seed is None else seed, "day": 1,
+        "home": nation,
         "resources": {"credits": 600, "materials": 240, "fuel": 500, "research": 40},
-        "reputation": 50, "relations": relations, "trust": dict(START_TRUST),
-        "treaties": {c: [] for c in FOREIGN},
+        "reputation": 50, "relations": relations, "trust": trust,
+        "treaties": {c: [] for c in others},
         "disputes": {d[0]: "open" for d in DISPUTES},
         "fleet": [], "next_uid": 1, "builds": [], "research": [],
-        "intel": {c: {} for c in FOREIGN},
+        "intel": {c: {} for c in others},
         "completed": {}, "unlocked": 1, "threat": 0, "weather": "clear",
         "events": [], "conflicts_avoided": 0, "ending": None, "_records": [],
     }
-    for kind in ("lm_wren", "lm_lantern"):
+    starters = ("lm_wren", "lm_lantern") if nation == HOME else \
+        [k for k, a in AIRCRAFT.items() if a["country"] == nation][:2]
+    for kind in starters:
         add_aircraft(state, kind)
     return state
 
@@ -69,11 +88,12 @@ def clamp(v, lo, hi):
     return max(lo, min(hi, v))
 
 
-def relation(state: dict, a: str, b: str = HOME) -> int:
-    return state["relations"][pair_key(a, b)]
+def relation(state: dict, a: str, b: str | None = None) -> int:
+    return state["relations"][pair_key(a, b or home(state))]
 
 
-def change_relation(state, a, delta, b=HOME, reason=""):
+def change_relation(state, a, delta, b=None, reason=""):
+    b = b or home(state)
     if not delta or a == b:
         return
     key = pair_key(a, b)
@@ -85,7 +105,7 @@ def change_relation(state, a, delta, b=HOME, reason=""):
 
 
 def change_trust(state, country, delta):
-    if country != HOME:
+    if country != home(state):
         state["trust"][country] = clamp(state["trust"][country] + delta, 0, 100)
 
 

@@ -5,8 +5,33 @@ A message appears when `after` (message id, reply id or None) or `level` is met.
 """
 
 
+from nebula.data.characters import AIR_CHIEFS, LEADERS
+
+
 def _r(key, text, response, cost=None, **effects):
     return {"id": key, "text": text, "response": response, "cost": cost or {}, "effects": effects}
+
+
+def messages_for(home: str, foe: str) -> list[dict]:
+    """Lumeris keeps its written cast; other nations get the same choices from their own people."""
+    if home == "lumeris":
+        return MESSAGES
+    head, chief = LEADERS[home], AIR_CHIEFS[home]
+    generic = [
+        {**_by_id("welcome"), "from": head, "body": "Commander, the air force is yours. Tell me where you will start."},
+        {**_by_id("readiness"), "from": chief, "body": "I can run a readiness drill now, or save the supplies. Your call."},
+        {**_by_id("envoy"), "from": LEADERS[foe], "subject": "Regarding our shared skies",
+         "body": "Commander. Our survey aircraft will fly close to your lines. How do you intend to receive them?"},
+    ]
+    replies = {"welcome": ["Then the air force has your support.", "Wise. The signals room is yours.", "I am pleased to hear it."],
+               "readiness": ["The crews noticed. Thank you.", "Understood. I will make do."]}
+    for message in generic[:2]:
+        message["replies"] = [{**r, "response": text} for r, text in zip(message["replies"], replies[message["id"]])]
+    return generic
+
+
+def _by_id(key: str) -> dict:
+    return next(m for m in MESSAGES if m["id"] == key)
 
 
 MESSAGES = [

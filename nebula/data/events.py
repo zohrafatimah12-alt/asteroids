@@ -6,12 +6,12 @@ fuel, research, threat (public threat awareness), weather.
 
 EVENTS = [
     ("political", "Election upset in {a}", "A new bloc takes power and reviews foreign policy.", {"trust": -4}),
-    ("political", "{a} opens a cultural exchange", "Students and pilots from Lumeris are invited.", {"trust": 5}),
+    ("political", "{a} opens a cultural exchange", "Students and pilots from {home} are invited.", {"trust": 5}),
     ("border", "Border incident: {a} and {b}", "Patrol aircraft locked radar across the frontier.", {"rel": -10}),
     ("border", "{a} and {b} reopen a crossing", "Families cross for the first time in years.", {"rel": 8}),
-    ("economy", "Market shock in {a}", "Prices spike and Lumeris' trade income suffers.", {"credits": -60}),
-    ("economy", "Trade boom through {a}", "New contracts reach Lumeris workshops.", {"credits": 90}),
-    ("science", "Breakthrough shared by {a}", "A paper from {a} accelerates Lumeris research.", {"research": 25}),
+    ("economy", "Market shock in {a}", "Prices spike and {home}'s trade income suffers.", {"credits": -60}),
+    ("economy", "Trade boom through {a}", "New contracts reach {home}'s workshops.", {"credits": 90}),
+    ("science", "Breakthrough shared by {a}", "A paper from {a} accelerates {home}'s research.", {"research": 25}),
     ("aviation", "{a} unveils a new engine", "Test flights hint at a jump in performance.", {"research": 10}),
     ("diplomatic", "{a} and {b} sign a protocol", "A modest agreement lowers tension.", {"rel": 12}),
     ("military", "{a} stages exercises near {b}", "{b} protests the scale of the drills.", {"rel": -8}),
