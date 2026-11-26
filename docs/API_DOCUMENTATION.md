@@ -9,6 +9,7 @@ Errors are `{"detail": ...}`: **404** unknown id, **409** a game rule forbids it
 | GET `/api/levels` | All 100 level definitions |
 | GET, POST `/api/campaigns` | List; create with `{"player": "name", "seed": 5}` (seed optional) |
 | GET `/api/campaigns/{id}` | Full redacted game view |
+| GET `/api/campaigns/{id}/levels` | The 100 levels as this save sees them (treaty partners are not shown as opponents) |
 | GET `/api/campaigns/{id}/missions/{level}` | Briefing, peaceful option, wing odds |
 | POST `/api/campaigns/{id}/actions` | Perform an action; returns `{message, state}` |
 | GET `/api/campaigns/{id}/analytics` | Metrics from recorded play |

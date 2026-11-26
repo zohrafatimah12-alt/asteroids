@@ -123,12 +123,12 @@ function hangar(el) {
 }
 
 async function campaign(el, current) {
-  S.levels = await api(`/levels?home=${G().home}`);
+  S.levels = await api(`/campaigns/${G().id}/levels`);
   if (!current()) return;
   const g = G(), chapters = [...new Set(S.levels.map(l => l.chapter))];
   el.innerHTML = `<h2>Campaign · ${Object.keys(g.completed).length}/100</h2>${"100" in g.completed && !g.ending ? `<div class="panel"><button class="primary" data-go="ending">The final decision ▸</button></div>` : ""}${chapters.map(n => {
     const levels = S.levels.filter(l => l.chapter === n);
-    return `<div class="panel" style="margin-bottom:10px"><h3>Stage ${n} · ${esc(levels[0].chapter_title)} · ${levels[0].opponent ? "opponent: " + esc(nation(levels[0].opponent).name) : "all nations"}</h3><div class="levels">${levels.map(l => `<button data-level="${l.level}" title="${esc(l.title)} (${l.type_label})" class="${g.completed[l.level] ? "done" : l.level === g.unlocked ? "next" : ""}" ${l.level > g.unlocked || (l.chapter > 1 && !g.stage_reports[l.chapter - 1] && !g.completed[l.level]) ? "disabled" : ""}>${l.level}</button>`).join("")}</div></div>`;
+    return `<div class="panel" style="margin-bottom:10px"><h3>Stage ${n} · ${esc(levels[0].chapter_title)} · ${levels[0].ally ? `<span class="good">partner: ${esc(nation(levels[0].ally).name)} · ${esc(levels[0].ally_reason)}</span>` : levels[0].opponent ? "opponent: " + esc(nation(levels[0].opponent).name) : "all nations"}</h3><div class="levels">${levels.map(l => `<button data-level="${l.level}" title="${esc(l.title)} (${l.type_label})" class="${g.completed[l.level] ? "done" : l.level === g.unlocked ? "next" : ""}" ${l.level > g.unlocked || (l.chapter > 1 && !g.stage_reports[l.chapter - 1] && !g.completed[l.level]) ? "disabled" : ""}>${l.level}</button>`).join("")}</div></div>`;
   }).join("")}`;
   return () => el.querySelectorAll("[data-level]").forEach(b => b.onclick = () => { S.ui.level = Number(b.dataset.level); go("briefing"); });
 }

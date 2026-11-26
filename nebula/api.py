@@ -174,6 +174,12 @@ def get_campaign(cid: int):
         return view(cid, db.load(con, cid))
 
 
+@app.get("/api/campaigns/{cid}/levels")
+def get_campaign_levels(cid: int):
+    with db.connect() as con:
+        return missions.campaign_for(db.load(con, cid))
+
+
 @app.get("/api/campaigns/{cid}/missions/{level}")
 def get_mission(cid: int, level: int):
     with db.connect() as con:

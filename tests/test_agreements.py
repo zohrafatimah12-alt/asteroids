@@ -126,3 +126,14 @@ def test_old_save_without_new_fields_still_works():
         del state["incidents"][0][key]
     conflict.respond(state, "negotiate")
     assert not agreements.protected(state, ZV)
+
+
+def test_campaign_list_shows_partners_and_keeps_finished_titles():
+    state = campaign()
+    assert missions.campaign_for(state)[0]["opponent"] == ZV
+    state["treaties"][ZV] = ["peace"]
+    levels = missions.campaign_for(state)
+    assert all(m["opponent"] is None and m["ally"] == ZV for m in levels[:10])
+    assert levels[0]["title"].startswith("Unmarked Raiders") and levels[10]["opponent"] == "thalmora"
+    state["completed"]["1"] = "flown"
+    assert missions.campaign_for(state)[0]["title"] == "First Watch"

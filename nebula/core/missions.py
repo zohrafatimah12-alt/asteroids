@@ -139,6 +139,18 @@ def mission_for(state, level: int) -> dict:
     return _respect_agreements(state, definition(level, home_of(state)))
 
 
+def campaign_for(state) -> list[dict]:
+    """The campaign as this save should see it. Finished missions keep their original wording."""
+    result = []
+    for level in range(1, 101):
+        original = definition(level, home_of(state))
+        current = _respect_agreements(state, original)
+        if str(level) in state["completed"] and current is not original:
+            current = {**original, "opponent": None, "ally": current["ally"], "ally_reason": current["ally_reason"]}
+        result.append(current)
+    return result
+
+
 def _respect_agreements(state, mission: dict) -> dict:
     """Never cast a partner (or a fresh ceasefire) as the enemy; the sortie stays playable."""
     nation = mission["opponent"]
@@ -146,7 +158,7 @@ def _respect_agreements(state, mission: dict) -> dict:
     if not reason:
         return mission
     name = COUNTRIES[nation]["name"]
-    mission = {**mission, "opponent": None, "ally": nation}
+    mission = {**mission, "opponent": None, "ally": nation, "ally_reason": reason}
     if mission["antagonist"] or mission["level"] == 1:
         mission.update(
             antagonist=None, stood_down=mission["antagonist"], title=f"Unmarked Raiders · {name} frontier",
