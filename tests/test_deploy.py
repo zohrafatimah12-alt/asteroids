@@ -48,3 +48,47 @@ def test_healthz_answers_for_any_host_but_other_routes_still_check_hosts(monkeyp
     assert client.get("/api/world", headers={"host": "my-app.ethiodeploy.example"}).status_code == 200
     monkeypatch.delenv("NEBULA_HOSTS")
     importlib.reload(api)
+
+
+VERCEL = "https://nebulagame-seven.vercel.app"
+
+
+def _fresh(monkeypatch, env=None):
+    from nebula import api
+    for key, value in (env or {}).items():
+        monkeypatch.setenv(key, value)
+    importlib.reload(api)
+    return api, TestClient(api.app)
+
+
+def test_vercel_origin_gets_cors_headers_and_preflight_works(monkeypatch):
+    api, client = _fresh(monkeypatch, {"NEBULA_HOSTS": "asteroids.ethiodeploy.app"})
+    get = client.get("/api/world", headers={"Origin": VERCEL, "host": "asteroids.ethiodeploy.app"})
+    assert get.status_code == 200 and get.headers["access-control-allow-origin"] == VERCEL
+    pre = client.options("/api/campaigns", headers={
+        "Origin": VERCEL, "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type", "host": "asteroids.ethiodeploy.app"})
+    assert pre.status_code == 200
+    assert pre.headers["access-control-allow-origin"] == VERCEL
+    assert "POST" in pre.headers["access-control-allow-methods"]
+    monkeypatch.delenv("NEBULA_HOSTS")
+    importlib.reload(api)
+
+
+def test_error_responses_keep_cors_headers(monkeypatch):
+    api, client = _fresh(monkeypatch)
+    client = TestClient(api.app, raise_server_exceptions=False)
+    cid = client.post("/api/campaigns", json={"player": "T", "seed": 2}).json()["id"]
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("simulated fault")
+
+    monkeypatch.setattr(api, "view", broken)
+    boom = client.get(f"/api/campaigns/{cid}", headers={"Origin": VERCEL})
+    assert boom.status_code == 500 and boom.headers["access-control-allow-origin"] == VERCEL
+    monkeypatch.undo()
+    missing = client.get("/api/campaigns/999", headers={"Origin": VERCEL})
+    assert missing.status_code == 404 and missing.headers["access-control-allow-origin"] == VERCEL
+    rude = client.get("/api/world", headers={"Origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in rude.headers
+    importlib.reload(api)

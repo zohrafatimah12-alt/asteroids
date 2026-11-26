@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -49,10 +50,24 @@ app.add_middleware(_HostCheck, allowed_hosts=_HOSTS)
 def healthz():
     return {"status": "ok"}
 # The Vercel site is a different origin; only the origins listed here may call the API.
-_ORIGINS = [o.strip() for o in os.environ.get("NEBULA_CORS_ORIGINS", "").split(",") if o.strip()]
-if _ORIGINS:
-    app.add_middleware(CORSMiddleware, allow_origins=_ORIGINS, allow_methods=["GET", "POST"],
-                       allow_headers=["Content-Type"])
+class _ErrorsAsJSON(BaseHTTPMiddleware):
+    """Turns unexpected exceptions into JSON 500s inside the CORS layer, so browsers
+    still receive the Access-Control-Allow-Origin header on errors."""
+
+    async def dispatch(self, request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:  # noqa: BLE001 - last line of defence; details stay in server logs
+            return JSONResponse({"detail": "Server error"}, status_code=500)
+
+
+app.add_middleware(_ErrorsAsJSON)
+# Browsers on other origins (the Vercel site) may call the API. Added last, so it is
+# the outermost layer and every response, including errors, carries the header.
+_ORIGINS = ["https://nebulagame-seven.vercel.app"] + \
+    [o.strip() for o in os.environ.get("NEBULA_CORS_ORIGINS", "").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=sorted(set(_ORIGINS)), allow_methods=["GET", "POST", "OPTIONS"],
+                   allow_headers=["Content-Type"])
 _lock = threading.Lock()  # one writer at a time: read-modify-write on the state blob
 _processes: dict[str, subprocess.Popen] = {}
 
