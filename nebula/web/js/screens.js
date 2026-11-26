@@ -3,6 +3,7 @@ import { S, api, act, go, render, setGame } from "./app.js";
 import { esc, cap, flag, craft, meter, bars, line, toast } from "./ui.js";
 import { MODES, renderMap, zoom } from "./map.js";
 import { cue } from "./audio.js";
+import { intro, startIntro, hq, inbox, nations, debrief, dossier, options } from "./story.js";
 
 const G = () => S.game, nation = id => G().countries[id];
 const foreign = () => Object.keys(G().countries).filter(c => c !== S.world.home);
@@ -35,16 +36,19 @@ function profile(id) {
   ${home ? "" : `<div class="row"><button data-open="diplomacy">Diplomacy</button><button data-open="intel">Intelligence</button></div>`}`;
 }
 
+const MENU = [["map", "WORLD ATLAS"], ["nations", "TEN NATIONS"], ["command", "MILITARY DATABASE"], ["intel", "INTELLIGENCE"], ["analytics", "ANALYTICS"], ["settings", "SETTINGS"]];
 function menu(el) {
   el.innerHTML = `<div class="menu"><div class="star"></div><h1>NEBULA</h1><p class="dim" style="letter-spacing:.4em">THE SKIES OF VEYRA</p>
-  ${S.game ? `<button class="primary" data-go="map">CONTINUE · ${esc(S.game.player.toUpperCase())} · DAY ${S.game.day}</button>` : ""}
-  <button class="${S.game ? "" : "primary"}" data-go="new">NEW GAME</button>
-  ${S.game ? `<button data-go="settings">SAVE · LOAD · SETTINGS</button>` : ""}<div id="saves"></div></div>`;
+  <button class="primary" data-go="new">START CAMPAIGN</button><button ${S.game ? 'data-go="hq"' : "disabled"}>CONTINUE${S.game ? ` · ${esc(S.game.player.toUpperCase())} · DAY ${S.game.day}` : ""}</button>
+  <div class="row" style="justify-content:center;max-width:760px">${MENU.map(([k, t]) => `<button ${S.game ? `data-go="${k}"` : 'disabled title="Start a campaign first"'}>${t}</button>`).join("")}</div>
+  ${S.game ? `<button data-intro>REPLAY INTRODUCTION</button>` : ""}<div id="saves"></div></div>`;
   return async () => {
+    const replay = $(el, "[data-intro]");
+    if (replay) replay.onclick = startIntro;
     const list = await api("/campaigns");
     if (!list.length || !$(el, "#saves")) return;
     $(el, "#saves").innerHTML = `<h3>Campaigns</h3>${list.slice(0, 5).map(c => `<div class="row"><button data-load="${c.id}">${esc(c.player)} · day ${c.day} · ${c.completed}/100</button></div>`).join("")}`;
-    el.querySelectorAll("[data-load]").forEach(b => b.onclick = async () => { setGame(await api(`/campaigns/${b.dataset.load}`)); go("map"); });
+    el.querySelectorAll("[data-load]").forEach(b => b.onclick = async () => { setGame(await api(`/campaigns/${b.dataset.load}`)); go("hq"); });
   };
 }
 
@@ -53,7 +57,7 @@ function newGame(el) {
   <form class="row"><input name="player" maxlength="40" placeholder="Commander name" required autocomplete="off"><button class="primary">TAKE COMMAND</button></form><button data-go="menu">Back</button></div>`;
   return () => $(el, "form").onsubmit = async e => {
     e.preventDefault();
-    try { setGame(await api("/campaigns", { player: new FormData(e.target).get("player") })); go("map"); }
+    try { setGame(await api("/campaigns", { player: new FormData(e.target).get("player") })); startIntro(); }
     catch (err) { toast(err.message, true); }
   };
 }
@@ -160,10 +164,11 @@ async function briefing(el, current) {
   <tr><th>Completion</th><td>${esc(m.completion)}</td></tr><tr><th>Rewards</th><td>${esc(cost(m.rewards))}</td></tr>
   <tr><th>Aircraft</th><td>${m.combat ? `Range ${req.min_range}+, condition ${req.min_condition}+, fuel ${req.fuel}+. Recommended: ${esc(req.recommended.join(", "))}` : "None needed"}</td></tr>
   <tr><th>Diplomacy</th><td>${esc(m.diplomatic_consequence)}</td></tr><tr><th>Intelligence</th><td>${esc(m.intel_consequence)}</td></tr></table></div>
+  ${dossier(m)}${m.combat ? options(m) : ""}
   ${m.peaceful ? `<div class="panel" style="margin-top:12px"><h3>A way without fighting</h3><p>${esc(m.peaceful.requirement)}</p>${actionButton("Resolve peacefully", "peaceful", { level }, !m.peaceful.available)}</div>` : ""}
   <div class="grid" style="margin-top:12px">${m.combat ? planes.map(p => `<div class="panel">${craft(p.stats, nation(p.stats.country).colors)}<b>${esc(p.stats.name)}</b>
   <div class="small dim">condition ${p.condition} · fuel ${p.fuel} · ammo ${p.ammo} · range ${p.stats.range}</div>
-  <div class="row"><button class="primary" data-fly="${p.uid}">Fly it (Pygame)</button>${actionButton(`Command a wing (${Math.round(m.odds[p.uid] * 100)}% odds)`, "delegate", { level, uid: p.uid })}${actionButton("Service", "service", { uid: p.uid, kind: "all" })}</div></div>`).join("")
+  <div class="row"><button class="primary" data-fly="${p.uid}">LAUNCH MISSION</button>${actionButton(`Command a wing (${Math.round(m.odds[p.uid] * 100)}% odds)`, "delegate", { level, uid: p.uid })}${actionButton("Service", "service", { uid: p.uid, kind: "all" })}</div></div>`).join("")
     : m.choices.map(c => `<div class="panel"><h3>${esc(c.label)}</h3><p>${esc(c.text)}</p><div class="small dim">Cost: ${esc(cost(c.cost))}</div><div class="row">${actionButton("Choose", "decide", { level, kind: c.id })}</div></div>`).join("")}</div>`;
   return () => el.querySelectorAll("[data-fly]").forEach(b => b.onclick = async () => {
     b.disabled = true;
@@ -183,7 +188,7 @@ async function combat(el, current) {
     try {
       const r = await api(`/sorties/${S.ui.sortie}`);
       if (r.status !== "flying") {
-        S.ui.sortie = null; setGame(await api(`/campaigns/${G().id}`)); toast(r.message, r.status !== "complete"); go("campaign");
+        S.ui.sortie = null; setGame(await api(`/campaigns/${G().id}`)); toast(r.message, r.status !== "complete"); go(r.status === "complete" ? "debrief" : "briefing");
         return;
       }
     } catch (e) { toast(e.message, true); }
@@ -248,4 +253,4 @@ function ending(el) {
   <div class="dim">A plan whose conditions are unmet falls back to whatever Veyra can still achieve.</div><button data-go="campaign">Not yet</button></div>`;
 }
 
-export const SCREENS = { menu, new: newGame, map, diplomacy, intel: intelScreen, command, hangar, campaign, briefing, combat, events, analytics, settings, ending };
+export const SCREENS = { menu, new: newGame, intro, hq, inbox, nations, debrief, map, diplomacy, intel: intelScreen, command, hangar, campaign, briefing, combat, events, analytics, settings, ending };

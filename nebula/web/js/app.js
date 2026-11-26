@@ -4,7 +4,7 @@ import { cue, starfield } from "./audio.js";
 import { SCREENS } from "./screens.js";
 
 export const S = { world: null, levels: null, game: null, ui: { mode: "political", country: "lumeris", level: 0 } };
-const NAV = [["map", "World"], ["campaign", "Campaign"], ["diplomacy", "Diplomacy"], ["intel", "Intelligence"], ["command", "Air Force"], ["hangar", "Hangar"], ["events", "Events"], ["analytics", "Analytics"], ["settings", "Settings"]];
+const NAV = [["hq", "Command"], ["inbox", "Inbox"], ["map", "World"], ["nations", "Nations"], ["campaign", "Campaign"], ["diplomacy", "Diplomacy"], ["intel", "Intelligence"], ["command", "Air Force"], ["hangar", "Hangar"], ["events", "Events"], ["analytics", "Analytics"], ["settings", "Settings"]];
 
 export async function api(path, body) {
   const res = await fetch("/api" + path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -21,7 +21,9 @@ export async function act(type, extra = {}) {
     const { message, state } = await api(`/campaigns/${S.game.id}/actions`, { type, ...extra });
     setGame(state);
     toast(message); cue("good");
-    if (type === "ending") location.hash = "ending"; else await render(false);
+    if (type === "ending") location.hash = "ending";
+    else if (["decide", "delegate", "peaceful"].includes(type)) go("debrief");
+    else await render(false);
     return true;
   } catch (e) { toast(e.message, true); cue("bad"); return false; }
 }
@@ -34,9 +36,10 @@ export async function render(animate = true) {
   if (!SCREENS[name] || (!S.game && !["menu", "new"].includes(name))) name = "menu";
   const main = document.getElementById("screen");
   const g = S.game;
-  document.getElementById("top").innerHTML = !g || ["menu", "new", "ending"].includes(name) ? "" :
-    `<h1 class="brand" data-go="menu">NEBULA</h1><nav>${NAV.map(([k, t]) => `<a href="#${k}" class="${k === name ? "on" : ""}">${t}</a>`).join("")}</nav>
-     <div class="res" title="${esc(g.player)}"><span>Day <b>${g.day}</b></span>${Object.entries(g.resources).map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("")}<span>rep <b>${g.reputation}</b></span></div>`;
+  document.getElementById("top").innerHTML = !g || ["menu", "new", "ending", "intro"].includes(name) ? "" :
+    `<h1 class="brand" data-go="menu">NEBULA</h1><nav>${NAV.filter(([k]) => g.completed[1] || !["command", "events", "analytics"].includes(k)).map(([k, t]) => `<a href="#${k}" class="${k === name ? "on" : ""}">${t}</a>`).join("")}</nav>
+     <div class="res" title="${esc(g.player)}"><span>Day <b>${g.day}</b></span>${Object.entries(g.resources).map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("")}<span>rep <b>${g.reputation}</b></span><button data-hint>HINT</button></div>`;
+  if (["map", "hangar"].includes(name)) localStorage.setItem(`nebula.seen.${name}.${g.id}`, "1");
   if (animate) { main.style.animation = "none"; void main.offsetWidth; main.style.animation = ""; scrollTo(0, 0); }
   try {
     const bind = await SCREENS[name](main, () => mine === token);
@@ -45,6 +48,7 @@ export async function render(animate = true) {
 }
 
 document.addEventListener("click", e => {
+  if (e.target.closest("[data-hint]")) { toast(S.game.advice[0]); return; }
   const el = e.target.closest("[data-go],[data-act]");
   if (!el || el.disabled) return;
   cue("click");

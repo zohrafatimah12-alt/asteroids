@@ -1,5 +1,6 @@
 """FastAPI layer: validation and presentation only. Rules live in nebula.core."""
 
+import copy
 import json
 import os
 import subprocess
@@ -15,9 +16,10 @@ from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from nebula.analytics.pipeline import metrics
-from nebula.core import db, diplomacy, endings, hangar, intel, missions, world
+from nebula.core import commander, db, diplomacy, endings, hangar, intel, missions, world
 from nebula.core.state import HOME, RuleError, new_state, relation, stats
 from nebula.data.aircraft import ABILITIES, AIRCRAFT, UPGRADES
+from nebula.data.characters import CHARACTERS, LEADERS, public as public_character
 from nebula.data.countries import COUNTRIES
 from nebula.data.geography import map_payload, neighbours
 
@@ -102,6 +104,10 @@ def view(campaign_id: int, state: dict) -> dict:
                    for k, a in AIRCRAFT.items()],
         "ending_requirements": endings.requirements(state),
         "ending_story": endings.ENDINGS.get(state["ending"]),
+        "inbox": commander.inbox(state), "advice": commander.advice(state),
+        "ranking": commander.national_ranking(), "air_power": commander.air_power(state),
+        "history": state.get("history", []), "tactics": state.get("tactics", []),
+        "philosophy": state.get("philosophy"),
     }
 
 
@@ -109,7 +115,9 @@ def view(campaign_id: int, state: dict) -> dict:
 def get_world():
     return {"map": map_payload(), "abilities": ABILITIES,
             "upgrades": UPGRADES, "treaties": diplomacy.TREATIES,
-            "approaches": diplomacy.APPROACHES, "home": HOME}
+            "approaches": diplomacy.APPROACHES, "home": HOME,
+            "characters": {k: public_character(k) for k in CHARACTERS}, "leaders": LEADERS,
+            "philosophies": commander.PHILOSOPHIES, "tactics": missions.TACTICS}
 
 
 @app.get("/api/levels")
@@ -162,6 +170,9 @@ ACTIONS = {
     "delegate": lambda s, a: missions.delegate(s, a.level, a.uid),
     "peaceful": lambda s, a: missions.resolve_peacefully(s, a.level),
     "wait": lambda s, a: f"A day passes. {len(world.advance_day(s))} new report(s).",
+    "philosophy": lambda s, a: commander.choose_philosophy(s, a.kind),
+    "reply": lambda s, a: commander.reply(s, a.subject, a.kind),
+    "prepare": lambda s, a: missions.prepare(s, a.kind),
     "ending": lambda s, a: f"Ending reached: {endings.ENDINGS[endings.conclude(s, a.kind)][0]}",
 }
 DAY_ACTIONS = {"treaty", "aid", "pressure", "dispute", "intel"}  # each takes a day
@@ -176,9 +187,13 @@ def post_action(cid: int, action: Action):
         state["_records"] = []
         if state["ending"]:
             raise RuleError("This campaign has ended")
+        before = copy.deepcopy(state)
         message = ACTIONS[action.type](state, action)
+        if action.type in ("decide", "delegate", "peaceful"):
+            state["last_debrief"] = missions.debrief(before, state, action.level)
         if action.type in DAY_ACTIONS:
             world.advance_day(state)
+        commander.deliver(state)
         db.save(con, cid, state)
         return {"message": message, "state": view(cid, state)}
 
@@ -261,8 +276,11 @@ def get_sortie(sid: str):
             state = db.load(con, row["campaign_id"])
             state["_records"] = []
             try:
+                before = copy.deepcopy(state)
                 message = missions.apply_combat(state, row["level"], row["uid"], result)
+                state["last_debrief"] = missions.debrief(before, state, row["level"], result)
                 status = "complete"
+                commander.deliver(state)
                 db.save(con, row["campaign_id"], state)
             except RuleError as exc:
                 message, status = str(exc), "void"

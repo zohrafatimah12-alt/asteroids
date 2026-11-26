@@ -29,7 +29,7 @@ TYPES = {
 STRATEGIC_TYPES = ("diplomacy", "intelligence", "economy", "research")
 
 # Levels where a named air force opposes you; goodwill can end these without a shot.
-ANTAGONIST = {6: "drakoria", 12: "varkhen", 15: "varkhen", 25: "varkhen", 30: "varkhen",
+ANTAGONIST = {1: "zorvania", 6: "drakoria", 12: "varkhen", 15: "varkhen", 25: "varkhen", 30: "varkhen",
               38: "varkhen", 39: "varkhen", 58: "kryvos", 66: "kryvos", 86: "drakoria"}
 THREAT_STAGES = {5: 10, 9: 18, 20: 24, 29: 28, 47: 38, 55: 50, 57: 58, 71: 68, 74: 78,
                  77: 84, 78: 86, 95: 94, 100: 100}
@@ -196,8 +196,60 @@ def apply_combat(state, level: int, uid: int, result: dict, mode: str = "flown")
     _attempt(state, mission, mode, success, plane["type"],
              **{k: v for k, v in result.items() if k != "success"})
     _complete(state, mission, success, mode)
+    state.pop("tactics", None)  # preparations last for one sortie
     advance_day(state)
     return "Mission accomplished." if success else "Mission failed. Repair, rearm and try again."
+
+
+# id: (label, cost, plain-language benefit, risk)
+TACTICS = {
+    "patrol": ("Defensive patrol", {"fuel": 40},
+               "Picket aircraft widen your radar by a quarter on the next sortie.",
+               "Spends fuel even if you never launch."),
+    "support": ("Request allied support", {"credits": 60},
+                "An Aerovant wingman joins your next sortie. Needs Aerovant trust 52+.",
+                "Costs credits and a little Aerovant goodwill. The wingman can be shot down."),
+}
+
+
+def prepare(state, key: str) -> str:
+    if key not in TACTICS:
+        raise RuleError("Unknown preparation")
+    if key in state.get("tactics", []):
+        raise RuleError("Already arranged for the next sortie")
+    if key == "support" and state["trust"]["aerovant"] < 52:
+        raise RuleError("Aerovant does not trust you enough yet")
+    label, cost, _, _ = TACTICS[key]
+    spend(state, f"tactics:{key}", **cost)
+    if key == "support":
+        change_relation(state, "aerovant", -2, reason="support_request")
+    state.setdefault("tactics", []).append(key)
+    log(state, "player_decision", choice=key, context="tactics")
+    return f"{label} arranged for the next flown sortie."
+
+
+def debrief(before: dict, after: dict, level: int, result: dict | None = None) -> dict:
+    """What changed, computed by comparing real state before and after a mission."""
+    mission = definition(level)
+    attempt = next((row for table, row in reversed(after["_records"])
+                    if table == "mission_attempts"), {})
+    delta = lambda a, b: {k: b[k] - a[k] for k in a if b[k] != a[k]}
+    intel_gained = [f"{COUNTRIES[c]['name']}: {s}" for c, known in after["intel"].items()
+                    for s, v in known.items() if v > before["intel"][c].get(s, 0)]
+    result = result or {}
+    return {
+        "level": level, "title": mission["title"], "success": bool(attempt.get("success")),
+        "mode": attempt.get("mode"), "objectives": mission["objectives"],
+        # None means not simulated for this mode, which the UI states rather than inventing.
+        "enemy_lost": result.get("kills"), "wingman_lost": result.get("wingman_lost"),
+        "ammo_used": result.get("ammo_used"), "fuel_used": result.get("fuel_used"),
+        "damage": result.get("damage_taken"),
+        "resources": delta(before["resources"], after["resources"]),
+        "trust": delta(before["trust"], after["trust"]),
+        "reputation": after["reputation"] - before["reputation"],
+        "intel": intel_gained,
+        "unlocked": after["unlocked"] if after["unlocked"] > before["unlocked"] else None,
+    }
 
 
 def success_chance(state, mission, plane) -> float:

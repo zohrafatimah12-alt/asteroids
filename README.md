@@ -41,6 +41,14 @@ The original game:
 uv run main.py
 ```
 
+## Your first mission
+1. **Start campaign**, enter a name and watch the written introduction (no voices; skippable, but you must choose a command philosophy).
+2. In the command centre, follow **Commander training**. Answer messages in the **Inbox**.
+3. Open **Mission briefing**: read the Zorvania dossier and **What should I do?**
+4. Press **LAUNCH MISSION** (Pygame window; Enter to take off). The debrief opens when you finish.
+
+To avoid combat, build goodwill with Zorvania (for example, choose Diplomacy First, fund the hotline and answer its follow-up) until **Resolve peacefully** unlocks.
+
 ## Test
 ```bash
 uv run pytest

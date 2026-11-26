@@ -52,7 +52,7 @@ class Sim:
         self.fuel_burn = 0.30 * (1.35 - p["range"] / 150)
         self.start_fuel = self.fuel
         # Detection radius in pixels, from the airframe's radar and the weather.
-        self.radar = (260 + p["radar"] * 6) * self.vision
+        self.radar = (260 + p["radar"] * 6) * self.vision * ticket.get("radar_boost", 1.0)
         self.ground_bonus = 1.8 if p["category"] in ("bomber", "heavy") else 1.0
 
         self.enemies, self.rounds, self.fragments = (pygame.sprite.Group() for _ in range(3))
@@ -453,7 +453,8 @@ class Sim:
                 "hits": min(self.hits, self.shots), "damage_taken": max(0, round(lost * 0.8)),
                 "duration": round(self.time, 1),
                 "fuel_used": round(self.start_fuel - self.fuel),
-                "ammo_used": self.start_ammo - self.ammo}
+                "ammo_used": self.start_ammo - self.ammo,
+                "wingman_lost": int(not self.wingman.alive_flag) if self.wingman else 0}
 
 
 def autopilot(sim: Sim) -> Controls:

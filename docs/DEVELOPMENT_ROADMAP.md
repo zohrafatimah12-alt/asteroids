@@ -1,6 +1,10 @@
 # Roadmap and known limitations
 
 ## Limitations today
+- **The 100 levels are still grouped by host country.** The ranked-opponent ladder (10 vs 9, then 9 vs 8, and so on), stage completion, rank progression, treaty negotiation with counteroffers and a joint air-force command are **not built**. Only Level 1 is set up against Zorvania with a dossier.
+- **Characters:** 21 exist (10 Lumeris, 3 Zorvania, one leader for each other nation). There are 8 messages, mostly early-game. Later conversations do not yet recall past choices; the philosophy changes starting values, intro reactions and adviser advice, not later dialogue or briefings.
+- **Not built:** International Council, news network, army screen, weapons and bombs inventory, misinformation, achievements, combat restart.
+- **Wing sorties** do not track enemy or wingman losses or ammunition detail; defensive patrol only affects flown sorties.
 - **Not yet play-tested by a person.** Combat balance was checked only with a simple autopilot. It completed all ten mission types at low levels and lost several high-level defence, airbase and battle missions with un-upgraded aircraft.
 - **Browser clicking is not covered by tests.** Screens were rendered in headless Chrome without script errors; actions are tested through the API.
 - **Audio** is synthesised effects only, with no music, and has not been checked by ear.
@@ -14,6 +18,7 @@
 - Local, single-player; no PostgreSQL port.
 
 ## Next
+0. Ranked-opponent stages with treaties and a joint air-force command.
 1. Human play-test and retune difficulty, mission length and economy.
 2. Unique choices and consequences for key story levels; branching missions.
 3. Enemy aircraft that use their nation's own airframes and abilities.

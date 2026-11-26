@@ -6,7 +6,7 @@ rules in nebula.core.missions so that balancing lives in one place.
 
 CHAPTERS = [
     ("lumeris", "The Small Light", """
-First Watch|interception|Unmarked scout drones cross Elowen's valleys. The Skywatch has one flightworthy Wren: yours.
+First Watch|interception|Zorvanian survey drones are crossing the south-eastern border toward Calix Reach. Zorvek calls them research flights. The Skywatch has little to stop them with.
 Eyes on the Reach|reconnaissance|Map the damaged strips around Calix Reach before the rains.
 Relief Run|escort|A medical transport must cross raider country to Marrowfen.
 The Water Question|diplomacy|Drakoria claims the Calix Headwaters. The Council asks you to carry an answer.

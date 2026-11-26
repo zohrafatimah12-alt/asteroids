@@ -1,5 +1,10 @@
 # Development log
 
+## Cinematic and first-mission slice
+- Added written cinematic introduction, permanent command philosophy, 21 characters, branching messages, command centre with training and adviser, nations screen, Level 1 dossier, preparations and debrief. All art is original SVG; there is no voice audio.
+- Level 1 now opposes Zorvania, which ranks ninth by the existing military data.
+- Verified: 42 tests; a headless Chrome click-through from new game to debrief with no script errors.
+
 ## 2026-11-26: first NEBULA foundation (branch `nebula`)
 - Inspected the Asteroids project; left its source files unchanged.
 - Built world data and shared-vertex map; rules; SQLite and API; Pygame combat; web interface; analytics.

@@ -196,7 +196,7 @@ old territorial claims were frozen, not solved. The campaign begins as that peac
 ## Campaign (spoilers)
 
 ### Chapter 1: The Small Light
-1. **First Watch** (interception): Unmarked scout drones cross Elowen's valleys. The Skywatch has one flightworthy Wren: yours.
+1. **First Watch** (interception): Zorvanian survey drones are crossing the south-eastern border toward Calix Reach. Zorvek calls them research flights. The Skywatch has little to stop them with.
 2. **Eyes on the Reach** (reconnaissance): Map the damaged strips around Calix Reach before the rains.
 3. **Relief Run** (escort): A medical transport must cross raider country to Marrowfen.
 4. **The Water Question** (diplomacy): Drakoria claims the Calix Headwaters. The Council asks you to carry an answer.
