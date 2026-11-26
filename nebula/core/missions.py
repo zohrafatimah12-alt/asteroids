@@ -2,6 +2,7 @@
 
 import random
 
+from nebula.core import stages
 from nebula.core.intel import add_intel
 from nebula.core.state import (FOREIGN, HOME, RuleError, change_relation, change_reputation,
                                change_trust, find_plane, gain, log, record, relation, spend, stats)
@@ -28,9 +29,9 @@ TYPES = {
 }
 STRATEGIC_TYPES = ("diplomacy", "intelligence", "economy", "research")
 
-# Levels where a named air force opposes you; goodwill can end these without a shot.
-ANTAGONIST = {1: "zorvania", 6: "drakoria", 12: "varkhen", 15: "varkhen", 25: "varkhen", 30: "varkhen",
-              38: "varkhen", 39: "varkhen", 58: "kryvos", 66: "kryvos", 86: "drakoria"}
+# In stages 1-9 these combat types are fought against the stage's ranked opponent,
+# so enough goodwill with that nation can end them without a shot. Level 1 does too.
+OPPOSED_TYPES = ("interception", "strike", "battle")
 THREAT_STAGES = {5: 10, 9: 18, 20: 24, 29: 28, 47: 38, 55: 50, 57: 58, 71: 68, 74: 78,
                  77: 84, 78: 86, 95: 94, 100: 100}
 
@@ -94,7 +95,12 @@ def definition(level: int) -> dict:
     elif kind in ("reconnaissance", "investigation", "strike"):
         params["n"] = 3 + level // 40
     label, objective, categories = TYPES[kind]
-    locations = [c["capital"], *c["cities"][1:]]
+    stage = m["chapter"]
+    opponent = country if stage <= 9 else None
+    antagonist = opponent if level == 1 or kind in OPPOSED_TYPES else None
+    # Stage 1 is fought over Lumeris' own south-eastern corridor.
+    place = COUNTRIES[HOME] if stage == 1 else c
+    locations = [place["capital"], *place["cities"][1:]]
     combat = kind not in STRATEGIC_TYPES
     reward = {"credits": 90 + 3 * level, "materials": 40 + level, "research": 12 + level // 2,
               "fuel": 50 + level // 2}
@@ -105,7 +111,7 @@ def definition(level: int) -> dict:
         "objectives": [objective.format(**params)],
         "completion": "Meet the objective with your aircraft intact" if combat
                       else "Choose an approach that succeeds",
-        "rewards": reward, "antagonist": ANTAGONIST.get(level),
+        "rewards": reward, "stage": stage, "opponent": opponent, "antagonist": antagonist,
         "requirements": ({"min_condition": 35, "fuel": 25, "min_range": 30 + level // 5,
                           "recommended": categories} if combat else {}),
         "diplomatic_consequence": ("Success raises trust at home and morale across Veyra."
@@ -131,6 +137,7 @@ def peaceful_option(state, mission) -> dict | None:
 def check_level(state, level: int):
     if state["ending"]:
         raise RuleError("This campaign has ended")
+    stages.check_unlocked(state, level)
     if level > state["unlocked"]:
         raise RuleError("Complete the previous level first")
 
@@ -138,13 +145,15 @@ def check_level(state, level: int):
 def check_aircraft(state, mission, uid: int) -> dict:
     plane = find_plane(state, uid)
     need = mission["requirements"]
+    if stages.grounded(state, plane):
+        raise RuleError("Its nation has restricted this aircraft. Repair the treaty first.")
     if plane["condition"] < need["min_condition"]:
         raise RuleError("Aircraft needs repair before it can fly this mission")
     if plane["fuel"] < need["fuel"]:
         raise RuleError("Aircraft needs refuelling")
     if plane["ammo"] <= 0:
         raise RuleError("Aircraft needs rearming")
-    if stats(plane)["range"] < need["min_range"]:
+    if stats(plane)["range"] < need["min_range"] - stages.range_relief(state):
         raise RuleError(f"Range too short: needs {need['min_range']}. Upgrade tanks or use another aircraft.")
     return plane
 
@@ -158,11 +167,13 @@ def _complete(state, mission, success: bool, mode: str, scale: float = 1.0):
         if first:
             state["completed"][str(level)] = mode
             state["unlocked"] = min(100, max(state["unlocked"], level + 1))
-            if country == HOME:
+            if country == HOME or (mission["antagonist"] == country and mode != "peaceful"):
+                # Beating a rival's aircraft earns standing at home, not their affection.
                 change_reputation(state, 1)
             else:
                 change_trust(state, country, 3)
                 change_relation(state, country, 2, reason="mission")
+            if country != HOME:
                 subject = ("strength", "weaknesses", "aircraft", "bases")[level % 4]
                 add_intel(state, country, subject, 0.3, "mission")
             if level in THREAT_STAGES:
@@ -196,6 +207,7 @@ def apply_combat(state, level: int, uid: int, result: dict, mode: str = "flown")
     _attempt(state, mission, mode, success, plane["type"],
              **{k: v for k, v in result.items() if k != "success"})
     _complete(state, mission, success, mode)
+    stages.after_sortie(state, plane, mission, success)
     state.pop("tactics", None)  # preparations last for one sortie
     advance_day(state)
     return "Mission accomplished." if success else "Mission failed. Repair, rearm and try again."

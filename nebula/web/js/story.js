@@ -1,6 +1,7 @@
 // Cinematic introduction, command centre, conversations and mission debrief.
 import { S, act, go } from "./app.js";
 import { esc, cap, flag } from "./ui.js";
+import { airChart } from "./stages.js";
 import { portrait, star, planet, commandRoom, ambience } from "./art.js";
 
 const G = () => S.game, nation = id => G().countries[id];
@@ -86,11 +87,12 @@ export function hq(el) {
   const unread = G().inbox.filter(m => !m.answer).length;
   el.innerHTML = `${commandRoom(S.world, G().countries)}<div class="grid" style="margin-top:14px">
   <div class="panel"><h3>Your adviser</h3>${speech("lu_officer", G().advice[0])}${G().advice.slice(1).map(a => `<p class="dim">${esc(a)}</p>`).join("")}</div>
-  <div class="panel"><h3>Commander ${esc(G().player)}</h3><p>National military rank <b class="gold">${rankOf("lumeris")} of 10</b></p><p>Reputation <b>${G().reputation}</b> · Air command rating <b>${G().air_power}</b> <span class="small dim">(your own airframes, weighted by condition)</span></p>
+  <div class="panel"><h3>Commander ${esc(G().player)}</h3><p>National military rank <b class="gold">${rankOf("lumeris")} of 10</b><br>Joint air-force rank <b class="gold">${G().air_ranking.findIndex(r => r.country === "lumeris") + 1} of 10</b></p><p>Reputation <b>${G().reputation}</b> · Air command rating <b>${G().air_power}</b> <span class="small dim">(your own airframes, weighted by condition)</span></p>
   <p>${G().philosophy ? esc(S.world.philosophies[G().philosophy].name) : "No philosophy declared"} · ${Object.keys(G().completed).length}/100 levels</p>
   <div class="row"><button class="primary" data-go="briefing">Mission briefing ▸</button><button data-go="inbox">Inbox (${unread})</button>${G().last_debrief ? `<button data-go="debrief">Last debrief</button>` : ""}</div></div>
   ${store("training.off") ? `<div class="panel"><h3>Training</h3><button data-training="">Replay training</button></div>` : `<div class="panel"><h3>Commander training ${done}/${steps.length}</h3>${steps.map(([t, ok, where]) => `<div class="row between"><span class="${ok ? "good" : ""}">${ok ? "✔" : "○"} ${esc(t)}</span>${next && next[0] === t ? `<button class="on" data-go="${where}">Go</button>` : ""}</div>`).join("")}<button data-training="1">Skip training</button></div>`}
   <div class="panel"><h3>National military ranking</h3>${rankChart()}</div>
+  <div class="panel"><h3>Joint air-force ranking</h3>${airChart()}<button data-go="joint">Joint Command</button></div>
   <div class="panel"><h3>Historical record</h3>${G().history.slice(-8).reverse().map(h => `<p class="small"><span class="gold">Day ${h.day}</span> ${esc(h.text)}</p>`).join("") || `<p class="dim">Nothing recorded yet.</p>`}</div></div>`;
   return () => el.querySelectorAll("[data-training]").forEach(b => b.onclick = () => {
     const key = `nebula.training.off.${G().id}`;
@@ -121,9 +123,18 @@ export function nations(el) {
   return () => el.querySelectorAll("[data-profile]").forEach(b => b.onclick = () => { S.ui.country = b.dataset.profile; go("map"); });
 }
 
+function opener(m) {
+  const c = m.opponent, n = nation(c), head = S.world.leaders[c];
+  const air = Object.values(S.world.characters).find(p => p.country === c && p.role === "Air Force Commander");
+  const show = r => r.value == null ? `<span class="tag unknown">unknown</span>` : `${esc([].concat(r.value).join(", "))} <span class="tag ${r.level}">${r.level}</span>`;
+  return `<div class="panel" style="margin-top:12px"><h3>Stage ${m.stage} opponent dossier</h3><div class="row">${flag(n)}<b>${esc(n.name)} · national rank ${rankOf(c)}</b></div><p>${esc(n.history)}</p>
+  <table>${["strength", "aircraft", "bases", "weaknesses"].map(k => `<tr><th>${cap(k)}</th><td>${show(n.intel[k])}</td></tr>`).join("")}</table>
+  <div class="grid">${speech(head, `Commander, ${n.name} will judge you by what your aircraft do here.`)}${speech(air.id, "My crews know their own sky. Consider that before you enter it.")}</div></div>`;
+}
+
 // Level 1 dossier and the beginner's guide to every option.
 export function dossier(m) {
-  if (m.level !== 1) return "";
+  if (m.level !== 1) return m.level % 10 === 1 && m.opponent ? opener(m) : "";
   const z = nation("zorvania"), known = z.intel;
   const show = r => r.value == null ? `<span class="tag unknown">unknown</span>` : `${esc([].concat(r.value).join(", "))} <span class="tag ${r.level}">${r.level}</span>`;
   return `<div class="panel" style="margin-top:12px"><h3>Opponent dossier</h3><div class="row">${flag(z)}<b>Zorvania · national rank ${rankOf("zorvania")}</b></div>
@@ -150,5 +161,6 @@ export function debrief(el) {
   <table><tr><th>Objective</th><td>${d.success ? "✔" : "✘"} ${esc(d.objectives.join("; "))}</td></tr><tr><th>Enemy aircraft destroyed by you</th><td>${na(d.enemy_lost)}</td></tr><tr><th>Friendly wingmen lost</th><td>${na(d.wingman_lost)}</td></tr><tr><th>Hull damage %</th><td>${na(d.damage)}</td></tr><tr><th>Ammunition used</th><td>${na(d.ammo_used)}</td></tr><tr><th>Fuel used by aircraft</th><td>${na(d.fuel_used)}</td></tr>
   <tr><th>National resources (net, including daily income)</th><td>${changes(d.resources)}</td></tr><tr><th>Trust</th><td>${changes(d.trust)}</td></tr><tr><th>Reputation</th><td>${d.reputation > 0 ? "+" : ""}${d.reputation}</td></tr><tr><th>Intelligence gained</th><td>${esc(d.intel.join(", ")) || "none"}</td></tr><tr><th>Unlocked</th><td>${d.unlocked ? "Level " + d.unlocked : "nothing new"}</td></tr></table></div>
   ${speech("lu_air", d.success ? "Everyone I am responsible for is accounted for. Well commanded." : "We recover, we repair, we go again. Look at what failed before you relaunch.")}
+  ${d.level % 10 === 0 && d.level < 100 && G().stages[d.level / 10 - 1].complete ? `<div class="panel"><h3>Stage ${d.level / 10} complete</h3><p>${esc(nation(G().stages[d.level / 10 - 1].country).name)} keeps its independence. Its leaders are ready to discuss a joint air command.</p><button class="primary" data-go="joint">Open the negotiating table ▸</button></div>` : ""}
   <div class="row"><button class="primary" data-go="hq">Return to command centre</button><button data-go="briefing">Next briefing</button><button data-go="analytics">Analytics</button></div>`;
 }

@@ -1,7 +1,8 @@
 import pytest
 
-from nebula.core import diplomacy, endings, hangar, intel, missions, world
+from nebula.core import diplomacy, endings, hangar, intel, missions, stages, world
 from nebula.core.state import FOREIGN, RuleError, new_state
+from nebula.data.treaty import DEFAULT
 
 
 def strategist(state):
@@ -21,7 +22,7 @@ def strategist(state):
                 if (missions.peaceful_option(state, mission) or {}).get("available"):
                     missions.resolve_peacefully(state, level)
                     continue
-                for plane in sorted(state["fleet"], key=lambda p: -missions.success_chance(state, mission, p)):
+                for plane in sorted((p for p in state["fleet"] if not p.get("owner")), key=lambda p: -missions.success_chance(state, mission, p)):
                     attempt(hangar.service, plane["uid"], "all")
                     for _ in range(3):
                         if plane["upgrades"].get("tanks", 0) < 3 and \
@@ -39,6 +40,11 @@ def strategist(state):
                 else:
                     world.advance_day(state, 2)
         assert str(level) in state["completed"], f"stuck at level {level}: {state['resources']}"
+        if level % 10 == 0 and level < 100:
+            attempt(stages.propose, level // 10, dict(DEFAULT, aircraft="40"))
+            attempt(stages.accept_counter, level // 10)
+            if str(level // 10) not in state.get("stage_reports", {}):
+                stages.postpone(state, level // 10)
         for project in hangar.RESEARCH:
             if project.startswith(("lens", "shield", "airframe")):
                 attempt(hangar.do_research, project)

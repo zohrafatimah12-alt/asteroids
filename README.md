@@ -65,6 +65,9 @@ uv run python -m nebula.analytics.pipeline 1 --export saves/export
 - **Diplomacy:** peace, then intelligence or alliance; trade any time. Some combat levels can be settled peacefully.
 - **Intelligence:** unknown, rumour, probable, confirmed. Only confirmed values are exact.
 - **Air force:** fuel, ammunition and repairs cost resources; later missions need more range. Failed missions can be retried.
+- **Stages:** each ten-level stage faces the next nation up the military ranking. Finishing one opens **Joint Command**, where that nation, still independent, can accept, counter or reject a treaty. You may postpone it and continue.
+- **Two rankings:** national military strength comes from fixed national data. Joint air-force rank is computed from aircraft actually under each command, so it rises only when your capability exceeds a rival's.
+- **Treaty care:** flying partner aircraft outside the agreed rules, returning them badly damaged or pressuring the partner lowers stability. Partners can ground or withdraw their aircraft.
 - **Endings:** the Great Union, the Last Evacuation or the Last Star, decided after level 100. The final screen lists each requirement.
 
 ## Documentation

@@ -23,6 +23,14 @@ _ROWS = [
     ("fr_head", "frostara", "Senior Warden", "Sigrun Alvessen", "grave, direct", "Leave nobody outside", "The archive frightens her"),
     ("dr_head", "drakoria", "Syndic-General", "Borin Mastrel", "gruff, honest", "Keep the foundries lit", "Labour unrest is worse than reported"),
     ("os_head", "ostraven", "Doge of Accounts", "Celandine Voss", "charming, transactional", "Trade over conflict", "Has bought secrets from both sides"),
+    ("th_air", "thalmora", "Air Force Commander", "Commodore Rua Silvane", "calm, exacting", "Cover the sea lanes", "Short of spare engines"),
+    ("el_air", "elyndra", "Air Force Commander", "Warden-General Petra Ilvash", "protective, stubborn", "Never fly an offensive war", "Her pilots are ageing"),
+    ("os_air", "ostraven", "Air Force Commander", "Air Comptroller Dario Venn", "polished, careful", "Keep losses affordable", "Pilots are underpaid"),
+    ("fr_air", "frostara", "Air Force Commander", "Flight Warden Eirik Solne", "quiet, fearless", "Bring every crew home", "Lost a brother on patrol"),
+    ("kr_air", "kryvos", "Air Force Commander", "Long-Captain Nadira Hosh", "patient, sharp", "Protect the long routes", "Answers to rival Houses"),
+    ("ae_air", "aerovant", "Air Force Commander", "Wing Director Casimir Vell", "analytical", "Prove the new designs", "Fears espionage"),
+    ("dr_air", "drakoria", "Air Force Commander", "Forgemaster Hedda Krull", "gruff, fair", "Waste no airframe", "Production is behind"),
+    ("vk_air", "varkhen", "Air Force Commander", "Strike General Ruvan Kesh", "proud, disciplined", "Keep Varkhen unbeaten", "Doubts the Marshal"),
 ]
 CHARACTERS = {r[0]: dict(zip(("id", "country", "role", "name", "personality", "goal", "private"), r)) for r in _ROWS}
 
@@ -32,3 +40,4 @@ def public(cid: str) -> dict:
 
 
 LEADERS = {c["country"]: i for i, c in reversed(list(CHARACTERS.items()))}
+AIR_CHIEFS = {c["country"]: i for i, c in CHARACTERS.items() if c["role"] == "Air Force Commander"}

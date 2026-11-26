@@ -79,6 +79,13 @@ def metrics(con, campaign_id: int) -> dict:
             parsed = pd.DataFrame([json.loads(d) for d in picks["detail"]])
             decisions = _records(parsed.groupby(["type", "choice"]).size().reset_index(name="count"))
 
+    def _details(kind: str) -> list[dict]:
+        if events.empty:
+            return []
+        rows = events[events["event_type"] == kind]
+        return [{"day": int(day), **json.loads(detail)} for day, detail in zip(rows["day"], rows["detail"])]
+
+    outcomes = pd.Series([d["outcome"] for d in _details("joint_treaty")], dtype=object)
     modes = attempts["mode"].value_counts().to_dict() if not attempts.empty else {}
     return {
         "attempts": len(attempts),
@@ -95,6 +102,11 @@ def metrics(con, campaign_id: int) -> dict:
         "credits_per_success": round(spent_credits / wins, 1) if wins else None,
         "campaign": {"completed": len(state["completed"]), "total": 100, "day": state["day"]},
         "decisions": decisions,
+        "joint_outcomes": {k: int(v) for k, v in outcomes.value_counts().items()},
+        "rank_history": _details("rank_change"),
+        "treaty_status_changes": _details("treaty_status"),
+        "treaties": [{"country": c, "status": t["status"], "stability": t["stability"],
+                      "aircraft": len(t["aircraft"])} for c, t in state.get("joint", {}).items()],
         "relationship_trend": trend,
     }
 

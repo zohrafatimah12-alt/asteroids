@@ -2,6 +2,7 @@
 
 import random
 
+from nebula.core import stages
 from nebula.core.state import (FOREIGN, HOME, RuleError, change_relation, change_reputation,
                                change_trust, gain, log, record, relation, spend)
 from nebula.data.countries import COUNTRIES
@@ -72,6 +73,7 @@ def send_aid(state, country: str) -> str:
     change_relation(state, country, 6, reason="aid")
     change_trust(state, country, 5)
     change_reputation(state, 1)
+    stages.strain(state, country, -10, "Lumeris sent aid")
     log(state, "aid_sent", country=country)
     return f"Aid delivered to {COUNTRIES[country]['name']}."
 
@@ -83,6 +85,7 @@ def pressure(state, country: str) -> tuple[bool, str]:
                >= COUNTRIES[country]["military"])
     change_relation(state, country, -9, reason="pressure")
     change_trust(state, country, -8)
+    stages.strain(state, country, 35, "Lumeris applied pressure to a treaty partner")
     record(state, "negotiations", country=country, kind="pressure", success=int(success), offer=0)
     if success:
         gain(state, "diplomacy:concession", credits=110)

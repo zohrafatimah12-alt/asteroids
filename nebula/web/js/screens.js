@@ -2,6 +2,7 @@
 import { S, api, act, go, render, setGame } from "./app.js";
 import { esc, cap, flag, craft, meter, bars, line, toast } from "./ui.js";
 import { MODES, renderMap, zoom } from "./map.js";
+import { jointScreen } from "./stages.js";
 import { cue } from "./audio.js";
 import { intro, startIntro, hq, inbox, nations, debrief, dossier, options } from "./story.js";
 
@@ -136,11 +137,11 @@ function hangar(el) {
   el.innerHTML = `<h2>Aircraft Hangar</h2><p class="dim">Daily income: ${esc(cost(G().income))}</p><div class="grid">${G().fleet.map(p => {
     const s = p.stats, total = {};
     for (const part of Object.values(p.service)) for (const [k, v] of Object.entries(part)) total[k] = (total[k] || 0) + v;
-    return `<div class="panel">${craft(s, nation(s.country).colors)}<b>${esc(s.name)}</b> <span class="dim small">#${p.uid} · ${s.category} · ${p.sorties} sorties · ${p.kills} kills</span>
+    return `<div class="panel">${craft(s, nation(s.country).colors)}<b>${esc(s.name)}</b> <span class="dim small">#${p.uid}${p.owner ? " · on loan from " + esc(nation(p.owner).name) : ""} · ${s.category} · ${p.sorties} sorties · ${p.kills} kills</span>
     ${meter("Condition", p.condition)}${meter("Fuel", p.fuel)}${meter("Ammo", p.ammo, s.ammo)}${["speed", "agility", "armour", "radar", "range"].map(k => meter(cap(k), s[k])).join("")}
     <div class="small">${esc(S.world.abilities[s.ability])}</div>
     <div class="row">${["refuel", "rearm", "repair"].map(a => actionButton(cap(a), "service", { uid: p.uid, kind: a })).join("")}${actionButton(`Full service (${cost(total)})`, "service", { uid: p.uid, kind: "all" })}</div>
-    <h3>Upgrades</h3>${Object.entries(S.world.upgrades).map(([k, [label, , , max]]) => { const tier = p.upgrades[k] || 0; return `<div class="row between"><span class="small">${esc(label)} ${"◆".repeat(tier)}${"◇".repeat(max - tier)}</span>${actionButton(tier >= max ? "Max" : cost(p.upgrade_costs[k]), "upgrade", { uid: p.uid, kind: k }, tier >= max)}</div>`; }).join("")}</div>`;
+    <h3>Upgrades</h3>${p.owner ? `<span class="small dim">Partner-owned aircraft cannot be modified.</span>` : ""}${(p.owner ? [] : Object.entries(S.world.upgrades)).map(([k, [label, , , max]]) => { const tier = p.upgrades[k] || 0; return `<div class="row between"><span class="small">${esc(label)} ${"◆".repeat(tier)}${"◇".repeat(max - tier)}</span>${actionButton(tier >= max ? "Max" : cost(p.upgrade_costs[k]), "upgrade", { uid: p.uid, kind: k }, tier >= max)}</div>`; }).join("")}</div>`;
   }).join("")}</div>`;
 }
 
@@ -148,10 +149,12 @@ function campaign(el) {
   const g = G(), chapters = [...new Set(S.levels.map(l => l.chapter))];
   el.innerHTML = `<h2>Campaign · ${Object.keys(g.completed).length}/100</h2>${"100" in g.completed && !g.ending ? `<div class="panel"><button class="primary" data-go="ending">The final decision ▸</button></div>` : ""}${chapters.map(n => {
     const levels = S.levels.filter(l => l.chapter === n);
-    return `<div class="panel" style="margin-bottom:10px"><h3>Chapter ${n} · ${esc(levels[0].chapter_title)} · ${esc(nation(levels[0].country).name)}</h3><div class="levels">${levels.map(l => `<button data-level="${l.level}" title="${esc(l.title)} (${l.type_label})" class="${g.completed[l.level] ? "done" : l.level === g.unlocked ? "next" : ""}" ${l.level > g.unlocked ? "disabled" : ""}>${l.level}</button>`).join("")}</div></div>`;
+    return `<div class="panel" style="margin-bottom:10px"><h3>Stage ${n} · ${esc(levels[0].chapter_title)} · ${levels[0].opponent ? "opponent: " + esc(nation(levels[0].opponent).name) : "all nations"}</h3><div class="levels">${levels.map(l => `<button data-level="${l.level}" title="${esc(l.title)} (${l.type_label})" class="${g.completed[l.level] ? "done" : l.level === g.unlocked ? "next" : ""}" ${l.level > g.unlocked || (l.chapter > 1 && !g.stage_reports[l.chapter - 1] && !g.completed[l.level]) ? "disabled" : ""}>${l.level}</button>`).join("")}</div></div>`;
   }).join("")}`;
   return () => el.querySelectorAll("[data-level]").forEach(b => b.onclick = () => { S.ui.level = Number(b.dataset.level); go("briefing"); });
 }
+
+const g_rules = p => G().joint[p.owner]?.terms.rules === "defensive";
 
 async function briefing(el, current) {
   const level = S.ui.level || G().unlocked;
@@ -167,6 +170,7 @@ async function briefing(el, current) {
   ${dossier(m)}${m.combat ? options(m) : ""}
   ${m.peaceful ? `<div class="panel" style="margin-top:12px"><h3>A way without fighting</h3><p>${esc(m.peaceful.requirement)}</p>${actionButton("Resolve peacefully", "peaceful", { level }, !m.peaceful.available)}</div>` : ""}
   <div class="grid" style="margin-top:12px">${m.combat ? planes.map(p => `<div class="panel">${craft(p.stats, nation(p.stats.country).colors)}<b>${esc(p.stats.name)}</b>
+  ${p.owner ? `<div class="small ${m.requirements.recommended && !S.world.defensive_types.includes(m.type) && g_rules(p) ? "bad" : "dim"}">Owned by ${esc(nation(p.owner).name)}${p.grounded ? " · GROUNDED by treaty restriction" : g_rules(p) && !S.world.defensive_types.includes(m.type) ? " · WARNING: this mission breaks the agreed operational rules" : ""}</div>` : ""}
   <div class="small dim">condition ${p.condition} · fuel ${p.fuel} · ammo ${p.ammo} · range ${p.stats.range}</div>
   <div class="row"><button class="primary" data-fly="${p.uid}">LAUNCH MISSION</button>${actionButton(`Command a wing (${Math.round(m.odds[p.uid] * 100)}% odds)`, "delegate", { level, uid: p.uid })}${actionButton("Service", "service", { uid: p.uid, kind: "all" })}</div></div>`).join("")
     : m.choices.map(c => `<div class="panel"><h3>${esc(c.label)}</h3><p>${esc(c.text)}</p><div class="small dim">Cost: ${esc(cost(c.cost))}</div><div class="row">${actionButton("Choose", "decide", { level, kind: c.id })}</div></div>`).join("")}</div>`;
@@ -219,6 +223,9 @@ async function analytics(el, current) {
   ${panel("Resources spent by category", bars(a.spending.map(r => [cap(r.category), r.total])))}
   ${panel("Resource flow", a.resources.length ? `<table><tr><th>Resource</th><th>Earned</th><th>Spent</th></tr>${a.resources.map(r => `<tr><td>${r.resource}</td><td>${r.earned}</td><td>${r.spent}</td></tr>`).join("")}</table>` : bars([]))}
   ${panel("Player decision patterns", bars(a.decisions.map(d => [`${cap(d.type)}: ${d.choice}`, d.count])))}
+  ${panel("Joint treaty talks", bars(Object.entries(a.joint_outcomes).map(([k, v]) => [cap(k), v])))}
+  ${panel("Treaty stability", bars(a.treaties.map(t => [nation(t.country).name, t.stability, `${t.status}, ${t.aircraft} aircraft`]), { max: 100 }))}
+  ${panel("Joint air rank changes", a.rank_history.map(r => `<div>Day ${r.day}: rank ${r.previous} → ${r.new} (capability ${r.rating})</div>`).join("") || bars([]))}
   ${panel("How missions were resolved", bars(Object.entries(a.by_mode).map(([k, v]) => [cap(k), v])))}</div>
   <div class="panel" style="margin-top:14px"><h3>Relationship with Lumeris over time (−100 to 100)</h3><div class="grid">${Object.entries(trend).map(([c, pts]) => `<div>${esc(nation(c).name)} <span class="dim">now ${pts.at(-1).value}</span>${line(pts)}</div>`).join("") || bars([])}</div></div>`;
 }
@@ -253,4 +260,4 @@ function ending(el) {
   <div class="dim">A plan whose conditions are unmet falls back to whatever Veyra can still achieve.</div><button data-go="campaign">Not yet</button></div>`;
 }
 
-export const SCREENS = { menu, new: newGame, intro, hq, inbox, nations, debrief, map, diplomacy, intel: intelScreen, command, hangar, campaign, briefing, combat, events, analytics, settings, ending };
+export const SCREENS = { joint: jointScreen, menu, new: newGame, intro, hq, inbox, nations, debrief, map, diplomacy, intel: intelScreen, command, hangar, campaign, briefing, combat, events, analytics, settings, ending };

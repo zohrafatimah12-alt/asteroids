@@ -1,7 +1,10 @@
 # Roadmap and known limitations
 
 ## Limitations today
-- **The 100 levels are still grouped by host country.** The ranked-opponent ladder (10 vs 9, then 9 vs 8, and so on), stage completion, rank progression, treaty negotiation with counteroffers and a joint air-force command are **not built**. Only Level 1 is set up against Zorvania with a dossier.
+- **Joint ranking pace:** lent aircraft accumulate, so with moderate treaties Lumeris climbs faster than one place per stage after Stage 2. In the scripted campaign it was 5th after Stage 3 and 1st after Stage 6. Inventories (`data/forces.py`) and term burdens (`data/treaty.py`) have not been tuned with players.
+- **Treaties:** proposals are menu choices with templated objections; the player cannot write a custom counter. Command authority changes only acceptance. Aircraft basing locations, weapons stocks and army cooperation are not modelled. "Ammunition" supply is delivered as materials.
+- **Peaceful routes** exist for Level 1 and for interception, strike and major-battle levels against a stage opponent.
+- **Old saves:** campaigns started before the stage reorder keep their completed level numbers, which now refer to different missions. Start a new campaign.
 - **Characters:** 21 exist (10 Lumeris, 3 Zorvania, one leader for each other nation). There are 8 messages, mostly early-game. Later conversations do not yet recall past choices; the philosophy changes starting values, intro reactions and adviser advice, not later dialogue or briefings.
 - **Not built:** International Council, news network, army screen, weapons and bombs inventory, misinformation, achievements, combat restart.
 - **Wing sorties** do not track enemy or wingman losses or ammunition detail; defensive patrol only affects flown sorties.
@@ -18,7 +21,7 @@
 - Local, single-player; no PostgreSQL port.
 
 ## Next
-0. Ranked-opponent stages with treaties and a joint air-force command.
+0. Play-test and tune treaty burdens and joint-ranking pace.
 1. Human play-test and retune difficulty, mission length and economy.
 2. Unique choices and consequences for key story levels; branching missions.
 3. Enemy aircraft that use their nation's own airframes and abilities.

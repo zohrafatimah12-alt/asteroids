@@ -1,5 +1,10 @@
 # Development log
 
+## Ranked stages and joint air command
+- Reordered the campaign to face national ranks 9 to 1, then a global crisis; wrote a new Ostraven stage and adapted Stage 1 to Zorvania.
+- Added treaty talks (accept, counteroffer, reject, postpone), partner-owned aircraft, operating rules, stability, restriction, withdrawal, expiry, stage reports and a data-computed joint air ranking.
+- Verified: 51 tests; a scripted player completes 100 levels on three seeds; headless Chrome click-through of a counteroffer, acceptance and Stage 2 briefing with no script errors.
+
 ## Cinematic and first-mission slice
 - Added written cinematic introduction, permanent command philosophy, 21 characters, branching messages, command centre with training and adviser, nations screen, Level 1 dossier, preparations and debrief. All art is original SVG; there is no voice audio.
 - Level 1 now opposes Zorvania, which ranks ninth by the existing military data.

@@ -2,6 +2,7 @@
 
 import random
 
+from nebula.core import stages
 from nebula.core.hangar import finish_builds
 from nebula.core.intel import add_intel
 from nebula.core.state import (FOREIGN, change_relation, change_trust, gain, record, relation)
@@ -55,6 +56,7 @@ def advance_day(state, days: int = 1) -> list[dict]:
         state["weather"] = rng.choice(["clear", "clear", "cloud", "wind", "storm"])
         gain(state, "income:daily", **daily_income(state))
         finish_builds(state)
+        stages.daily(state)
         if rng.random() < 0.65:
             event = roll_event(state, rng)
             if event:

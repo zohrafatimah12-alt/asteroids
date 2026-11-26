@@ -34,6 +34,8 @@ Body: `{"type": ..., plus the fields below}`
 | `delegate` | level, uid |
 | `peaceful` | level |
 | `wait` | none |
+| `joint_propose` | stage (1–9), terms (every key in `/api/world` `terms`) |
+| `joint_counter`, `joint_postpone` | stage |
 | `ending` | kind (union, evacuation) |
 
-`treaty`, `aid`, `pressure`, `dispute` and `intel` each take one day. A rejected negotiation is still a 200: it happened, and it is recorded.
+`joint_propose`, `treaty`, `aid`, `pressure`, `dispute` and `intel` each take one day. A rejected negotiation is still a 200: it happened, and it is recorded.

@@ -81,6 +81,8 @@ def upgrade_cost(tier: int) -> dict:
 
 def upgrade(state, uid: int, key: str) -> str:
     plane = find_plane(state, uid)
+    if plane.get("owner"):
+        raise RuleError("Partner-owned aircraft cannot be modified under the treaty")
     if key not in UPGRADES:
         raise RuleError("Unknown upgrade")
     label, _, _, max_tier = UPGRADES[key]
@@ -120,7 +122,7 @@ def manufacture(state, kind: str) -> str:
     reason = availability(state, kind)
     if reason:
         raise RuleError(reason)
-    if len(state["fleet"]) + len(state["builds"]) >= 12:
+    if sum(not p.get("owner") for p in state["fleet"]) + len(state["builds"]) >= 12:
         raise RuleError("Hangars are full (12 airframes)")
     spend(state, f"manufacture:{kind}", **build_cost(kind))
     state["builds"].append({"type": kind, "ready_day": state["day"] + 2})

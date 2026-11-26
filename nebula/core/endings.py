@@ -1,5 +1,6 @@
 """The three endings, decided by what the player actually did."""
 
+from nebula.core import stages
 from nebula.core.state import FOREIGN, RuleError, log, relation
 
 ENDINGS = {
@@ -28,7 +29,7 @@ ENDINGS = {
 
 
 def cooperating(state) -> list[str]:
-    return [c for c in FOREIGN if "alliance" in state["treaties"][c]
+    return [c for c in FOREIGN if "alliance" in state["treaties"][c] or c in stages.active(state)
             or (relation(state, c) >= 40 and state["trust"][c] >= 60)]
 
 

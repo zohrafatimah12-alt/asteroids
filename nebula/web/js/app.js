@@ -4,7 +4,7 @@ import { cue, starfield } from "./audio.js";
 import { SCREENS } from "./screens.js";
 
 export const S = { world: null, levels: null, game: null, ui: { mode: "political", country: "lumeris", level: 0 } };
-const NAV = [["hq", "Command"], ["inbox", "Inbox"], ["map", "World"], ["nations", "Nations"], ["campaign", "Campaign"], ["diplomacy", "Diplomacy"], ["intel", "Intelligence"], ["command", "Air Force"], ["hangar", "Hangar"], ["events", "Events"], ["analytics", "Analytics"], ["settings", "Settings"]];
+const NAV = [["hq", "Command"], ["inbox", "Inbox"], ["map", "World"], ["nations", "Nations"], ["campaign", "Campaign"], ["joint", "Joint Command"], ["diplomacy", "Diplomacy"], ["intel", "Intelligence"], ["command", "Air Force"], ["hangar", "Hangar"], ["events", "Events"], ["analytics", "Analytics"], ["settings", "Settings"]];
 
 export async function api(path, body) {
   const res = await fetch("/api" + path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -55,7 +55,7 @@ document.addEventListener("click", e => {
   if (el.dataset.go) go(el.dataset.go);
   else {
     const { act: type, ...rest } = el.dataset;
-    for (const key of ["uid", "level", "offer"]) if (key in rest) rest[key] = Number(rest[key]);
+    for (const key of ["uid", "level", "offer", "stage"]) if (key in rest) rest[key] = Number(rest[key]);
     el.disabled = true;
     act(type, rest).then(ok => { if (!ok) el.disabled = false; });
   }

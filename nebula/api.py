@@ -16,11 +16,12 @@ from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from nebula.analytics.pipeline import metrics
-from nebula.core import commander, db, diplomacy, endings, hangar, intel, missions, world
+from nebula.core import commander, db, diplomacy, endings, hangar, intel, missions, stages, world
 from nebula.core.state import HOME, RuleError, new_state, relation, stats
 from nebula.data.aircraft import ABILITIES, AIRCRAFT, UPGRADES
 from nebula.data.characters import CHARACTERS, LEADERS, public as public_character
 from nebula.data.countries import COUNTRIES
+from nebula.data.treaty import DEFAULT, DEFENSIVE_TYPES, TERMS
 from nebula.data.geography import map_payload, neighbours
 
 WEB = Path(__file__).parent / "web"
@@ -50,6 +51,8 @@ class NewCampaign(BaseModel):
 
 class Action(BaseModel):
     type: str
+    terms: dict[str, str] = Field(default_factory=dict, max_length=20)
+    stage: int = Field(default=0, ge=0, le=9)
     country: str = ""
     kind: str = ""
     subject: str = ""
@@ -90,7 +93,7 @@ def country_profile(state, cid: str) -> dict:
 
 
 def view(campaign_id: int, state: dict) -> dict:
-    fleet = [{**p, "stats": stats(p), "service": hangar.service_cost(p),
+    fleet = [{**p, "stats": stats(p), "grounded": stages.grounded(state, p), "service": hangar.service_cost(p),
               "upgrade_costs": {k: hangar.upgrade_cost(p["upgrades"].get(k, 0)) for k in UPGRADES}}
              for p in state["fleet"]]
     public = {k: v for k, v in state.items() if k not in ("_records", "intel", "seed")}
@@ -108,6 +111,12 @@ def view(campaign_id: int, state: dict) -> dict:
         "ranking": commander.national_ranking(), "air_power": commander.air_power(state),
         "history": state.get("history", []), "tactics": state.get("tactics", []),
         "philosophy": state.get("philosophy"),
+        "air_ranking": stages.air_ranking(state), "joint": state.get("joint", {}),
+        "talks": state.get("talks", {}), "stage_reports": state.get("stage_reports", {}),
+        "stages": [{"stage": n, "country": c, "complete": stages.stage_complete(state, n),
+                    "done": sum(str(x) in state["completed"] for x in range(n * 10 - 9, n * 10 + 1)),
+                    }
+                   for n, c in enumerate(stages.STAGE_OPPONENTS, 1)],
     }
 
 
@@ -117,7 +126,8 @@ def get_world():
             "upgrades": UPGRADES, "treaties": diplomacy.TREATIES,
             "approaches": diplomacy.APPROACHES, "home": HOME,
             "characters": {k: public_character(k) for k in CHARACTERS}, "leaders": LEADERS,
-            "philosophies": commander.PHILOSOPHIES, "tactics": missions.TACTICS}
+            "philosophies": commander.PHILOSOPHIES, "tactics": missions.TACTICS,
+            "terms": TERMS, "default_terms": DEFAULT, "defensive_types": DEFENSIVE_TYPES}
 
 
 @app.get("/api/levels")
@@ -173,9 +183,12 @@ ACTIONS = {
     "philosophy": lambda s, a: commander.choose_philosophy(s, a.kind),
     "reply": lambda s, a: commander.reply(s, a.subject, a.kind),
     "prepare": lambda s, a: missions.prepare(s, a.kind),
+    "joint_propose": lambda s, a: stages.propose(s, a.stage, a.terms),
+    "joint_counter": lambda s, a: stages.accept_counter(s, a.stage),
+    "joint_postpone": lambda s, a: stages.postpone(s, a.stage),
     "ending": lambda s, a: f"Ending reached: {endings.ENDINGS[endings.conclude(s, a.kind)][0]}",
 }
-DAY_ACTIONS = {"treaty", "aid", "pressure", "dispute", "intel"}  # each takes a day
+DAY_ACTIONS = {"joint_propose", "treaty", "aid", "pressure", "dispute", "intel"}  # each takes a day
 
 
 @app.post("/api/campaigns/{cid}/actions")
@@ -194,6 +207,7 @@ def post_action(cid: int, action: Action):
         if action.type in DAY_ACTIONS:
             world.advance_day(state)
         commander.deliver(state)
+        stages.track_rank(state)
         db.save(con, cid, state)
         return {"message": message, "state": view(cid, state)}
 
@@ -281,6 +295,7 @@ def get_sortie(sid: str):
                 state["last_debrief"] = missions.debrief(before, state, row["level"], result)
                 status = "complete"
                 commander.deliver(state)
+                stages.track_rank(state)
                 db.save(con, row["campaign_id"], state)
             except RuleError as exc:
                 message, status = str(exc), "void"

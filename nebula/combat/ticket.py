@@ -2,6 +2,7 @@
 
 from nebula.core.state import add_aircraft, new_state, stats
 from nebula.core.missions import definition
+from nebula.core import stages
 
 
 def build_ticket(state: dict, mission: dict, plane: dict) -> dict:
@@ -11,7 +12,7 @@ def build_ticket(state: dict, mission: dict, plane: dict) -> dict:
         "plane": {**stats(plane), "condition": plane["condition"], "ammo_now": plane["ammo"],
                   "fuel_now": plane["fuel"]},
         "weather": state["weather"],
-        "wingman": "support" in state.get("tactics", []) or any("alliance" in t for t in state["treaties"].values()),
+        "wingman": "support" in state.get("tactics", []) or bool(stages.active(state, "defence", "mutual")) or any("alliance" in t for t in state["treaties"].values()),
         "radar_boost": 1.25 if "patrol" in state.get("tactics", []) else 1.0,
         "seed": state["seed"] + state["day"] * 101 + mission["level"],
     }
