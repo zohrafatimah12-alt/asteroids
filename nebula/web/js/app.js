@@ -9,7 +9,8 @@ const NAV = [["menu", "Home"], ["hq", "Command"], ["crisis", "Crisis"], ["inbox"
 const OPEN_SCREENS = ["menu", "new", "select", "login", "intro", "settings"];
 
 export async function api(path, body) {
-  const res = await fetch("/api" + path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const base = window.NEBULA_API || "";  // set in config.js when the API is on another host
+  const res = await fetch(base + "/api" + path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof json.detail === "string" ? json.detail : "Request failed");
   return json;

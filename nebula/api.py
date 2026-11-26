@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -28,8 +29,15 @@ WEB = Path(__file__).parent / "web"
 ROOT = WEB.parents[1]
 
 app = FastAPI(title="NEBULA", version="0.1.0")
-# Local game: reject other Host headers (blocks DNS-rebinding from web pages).
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
+# Hosts this server answers to. Local play needs no setting; deployments list their
+# hostname in NEBULA_HOSTS (comma-separated). This blocks DNS-rebinding attacks.
+_HOSTS = ["127.0.0.1", "localhost", "testserver"] + [h.strip() for h in os.environ.get("NEBULA_HOSTS", "").split(",") if h.strip()]
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=_HOSTS)
+# The Vercel site is a different origin; only the origins listed here may call the API.
+_ORIGINS = [o.strip() for o in os.environ.get("NEBULA_CORS_ORIGINS", "").split(",") if o.strip()]
+if _ORIGINS:
+    app.add_middleware(CORSMiddleware, allow_origins=_ORIGINS, allow_methods=["GET", "POST"],
+                       allow_headers=["Content-Type"])
 _lock = threading.Lock()  # one writer at a time: read-modify-write on the state blob
 _processes: dict[str, subprocess.Popen] = {}
 
@@ -283,6 +291,12 @@ def launch_combat(ticket: Path) -> subprocess.Popen:
 @app.post("/api/campaigns/{cid}/sorties", status_code=201)
 def post_sortie(cid: int, body: SortieRequest):
     from nebula.combat.ticket import build_ticket
+
+    # Pygame needs a desktop window on the machine running the server. Hosts without
+    # one (such as PythonAnywhere) set NEBULA_ALLOW_COMBAT=0; the real odds-based
+    # "Command a wing" option stays available.
+    if os.environ.get("NEBULA_ALLOW_COMBAT", "1") == "0":
+        raise RuleError("Flying the sortie needs a desktop. Use Command a wing on this server.")
 
     with _lock, db.connect() as con:
         state = db.load(con, cid)
