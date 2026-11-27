@@ -70,7 +70,7 @@ def test_sortie_bridge_applies_result_once(monkeypatch):
 
     monkeypatch.setattr(api, "launch_combat", fake_launch)
     cid = new_campaign()["id"]
-    sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1}).json()["id"]
+    sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1, "mode": "desktop"}).json()["id"]
     assert client.get(f"/api/sorties/{sid}").json()["status"] == "complete"
     client.get(f"/api/sorties/{sid}")
     data = client.get(f"/api/campaigns/{cid}/analytics").json()

@@ -23,7 +23,7 @@ def test_combat_can_be_disabled_without_breaking_command(monkeypatch):
     client = TestClient(api.app)
     cid = client.post("/api/campaigns", json={"player": "T", "seed": 2}).json()["id"]
     monkeypatch.setenv("NEBULA_ALLOW_COMBAT", "0")
-    refused = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1})
+    refused = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1, "mode": "desktop"})
     assert refused.status_code == 409 and "Command a wing" in refused.json()["detail"]
     flown = client.post(f"/api/campaigns/{cid}/actions", json={"type": "delegate", "level": 1, "uid": 1})
     assert flown.status_code == 200
@@ -102,7 +102,7 @@ def test_sortie_fails_clearly_without_a_screen_and_keeps_the_error(monkeypatch, 
     monkeypatch.setattr(api.sys, "platform", "linux")
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
-    no_screen = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1})
+    no_screen = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1, "mode": "desktop"})
     assert no_screen.status_code == 409 and "no screen" in no_screen.json()["detail"]
     monkeypatch.setenv("DISPLAY", ":0")
 
@@ -115,7 +115,7 @@ def test_sortie_fails_clearly_without_a_screen_and_keeps_the_error(monkeypatch, 
         return Crashed()
 
     monkeypatch.setattr(api, "launch_combat", crash)
-    sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1}).json()["id"]
+    sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1, "mode": "desktop"}).json()["id"]
     status = client.get(f"/api/sorties/{sid}").json()
     assert status["status"] == "aborted" and "pygame.error: No video device" in status["message"]
     assert "closed without a result" not in status["message"]
@@ -139,7 +139,7 @@ def test_leaving_before_the_mission_is_not_a_crash(monkeypatch):
         return Left()
 
     monkeypatch.setattr(api, "launch_combat", leave)
-    sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1}).json()["id"]
+    sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1, "mode": "desktop"}).json()["id"]
     assert client.get(f"/api/sorties/{sid}").json()["message"].startswith("You left the mission")
     importlib.reload(api)
 
@@ -164,4 +164,21 @@ def test_browser_sortie_returns_ticket_and_accepts_one_result(monkeypatch):
     assert again.status_code == 409
     assert client.post(f"/api/sorties/{sid}/result", json={"success": True, "kills": -1}).status_code == 422
     monkeypatch.delenv("NEBULA_ALLOW_COMBAT")
+    importlib.reload(api)
+
+
+def test_launch_defaults_to_browser_combat_even_without_a_screen(monkeypatch):
+    from nebula import api
+    importlib.reload(api)
+    client = TestClient(api.app)
+    cid = client.post("/api/campaigns", json={"player": "T", "seed": 2}).json()["id"]
+    monkeypatch.setattr(api.sys, "platform", "linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setenv("NEBULA_ALLOW_COMBAT", "0")
+    default = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1})
+    assert default.status_code == 201 and "ticket" in default.json()
+    desktop = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1, "mode": "desktop"})
+    assert desktop.status_code == 409  # the old desktop path still refuses on a server with no screen
+    monkeypatch.undo()
     importlib.reload(api)

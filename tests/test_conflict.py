@@ -96,7 +96,7 @@ def test_war_mission_briefing_and_pygame_ticket_over_api(monkeypatch):
     level = conflict.war_level("zorvania")
     url = f"/api/campaigns/{cid}"
     assert client.get(url + f"/missions/{level}").json()["type_label"] == "War mission"
-    assert client.post(url + "/sorties", json={"level": level, "uid": 1}).status_code == 201
+    assert client.post(url + "/sorties", json={"level": level, "uid": 1, "mode": "desktop"}).status_code == 201
     import json
     assert Sim(json.loads(tickets[0].read_text())).mission["level"] == level
 

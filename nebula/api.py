@@ -107,7 +107,7 @@ class Label(BaseModel):
 class SortieRequest(BaseModel):
     level: int = Field(ge=1, le=110)
     uid: int
-    mode: str = Field(default="desktop", pattern="^(desktop|browser)$")
+    mode: str = Field(default="browser", pattern="^(desktop|browser)$")  # browser combat is the default everywhere
 
 
 def country_profile(state, cid: str) -> dict:

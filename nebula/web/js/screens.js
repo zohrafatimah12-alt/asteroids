@@ -153,12 +153,12 @@ async function briefing(el, current) {
   <div class="grid" style="margin-top:12px">${m.combat ? planes.map(p => `<div class="panel">${craft(p.stats, nation(p.stats.country).colors)}<b>${esc(p.stats.name)}</b>
   ${p.owner ? `<div class="small ${m.requirements.recommended && !S.world.defensive_types.includes(m.type) && g_rules(p) ? "bad" : "dim"}">Owned by ${esc(nation(p.owner).name)}${p.grounded ? " · GROUNDED by treaty restriction" : g_rules(p) && !S.world.defensive_types.includes(m.type) ? " · WARNING: this mission breaks the agreed operational rules" : ""}</div>` : ""}
   <div class="small dim">condition ${p.condition} · fuel ${p.fuel} · ammo ${p.ammo} · range ${p.stats.range}</div>
-  <div class="row"><button class="primary" data-fly="${p.uid}">LAUNCH MISSION</button>${actionButton(`Command a wing (${Math.round(m.odds[p.uid] * 100)}% odds)`, "delegate", { level, uid: p.uid })}${actionButton("Service", "service", { uid: p.uid, kind: "all" })}</div></div>`).join("")
+  <div class="row"><button class="primary" data-fly="${p.uid}">LAUNCH MISSION</button>${actionButton("Service", "service", { uid: p.uid, kind: "all" })}</div></div>`).join("")
     : m.choices.map(c => `<div class="panel"><h3>${esc(c.label)}</h3><p>${esc(c.text)}</p><div class="small dim">Cost: ${esc(cost(c.cost))}</div><div class="row">${actionButton("Choose", "decide", { level, kind: c.id })}</div></div>`).join("")}</div>`;
-  el.insertAdjacentHTML("beforeend", `<details class="panel controls-help"><summary>Flight controls (desktop combat window)</summary>
-  <p><kbd>↑</kbd><kbd>↓</kbd> throttle · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>W</kbd><kbd>S</kbd> and <kbd>A</kbd><kbd>D</kbd> also work</p>
-  <p><kbd>Space</kbd> guns · <kbd>F</kbd> missile · <kbd>Q</kbd> aircraft ability · <kbd>P</kbd> pause · <kbd>Esc</kbd> abort · <kbd>Enter</kbd> take off</p>
-  <p class="small dim">Flying happens in a separate window on the computer running NEBULA. Phones and tablets can use <b>Command a wing</b>.</p></details>`);
+  el.insertAdjacentHTML("beforeend", `<details class="panel controls-help"><summary>Flight controls</summary>
+  <p><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move the ship · <kbd>Shift</kbd> thrust forward</p>
+  <p><kbd>Space</kbd> fire · <kbd>F</kbd> missile · <kbd>Q</kbd> ability · <kbd>P</kbd> pause · <kbd>Esc</kbd> exit · <kbd>Enter</kbd> take off</p>
+  <p class="small dim">Phones and tablets use the on-screen pad (left) and buttons (right). Flight runs in your browser on any device.</p></details>`);
   return () => el.querySelectorAll("[data-fly]").forEach(b => b.onclick = async () => {
     b.disabled = true;
     try {
