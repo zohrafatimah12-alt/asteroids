@@ -144,13 +144,21 @@ export class Sim {
     // toward that velocity so motion stays smooth while a key is held.
     let mx = clamp(c.move?.x ?? 0, -1, 1), my = clamp(c.move?.y ?? 0, -1, 1);
     if (c.thrust) { const f = heading(p.rotation); mx = clamp(mx + f.x, -1, 1); my = clamp(my + f.y, -1, 1); }  // Shift: push along the nose
-    const len = Math.hypot(mx, my) || 1;
+    // Analog input keeps its strength (a half-pushed stick moves half speed); digital keys
+    // on a diagonal are normalised so they are not faster than straight movement.
+    const mag = Math.hypot(mx, my);
+    const scale = mag > 1 ? 1 / mag : 1;
     const top = this.moveSpeed * (p.stun > 0 ? 0.3 : 1) * (p.boost > 0 ? 1.8 : 1);
-    const target = new V(mx / len * top * (mx || my ? 1 : 0), my / len * top * (mx || my ? 1 : 0));
-    p.velocity = p.velocity.add(target.sub(p.velocity).mul(Math.min(1, 7 * dt)));
+    const target = new V(mx * scale * top, my * scale * top);
+    p.velocity = p.velocity.add(target.sub(p.velocity).mul(Math.min(1, 7 * dt)));  // eases; no snap
+    // Nose turns toward the movement angle at a limited rate, so it never snaps.
+    if (mag > 0.12) {
+      const desired = bearing(new V(), new V(mx, my));
+      const turn = 540 * dt;  // degrees per second
+      p.rotation += clamp(angleDiff(p.rotation, desired), -turn, turn);
+    }
     p.position = p.position.add(p.velocity.mul(dt)).add(this.wind.mul(dt));
     p.position = new V(clamp(p.position.x, 20, W - 20), clamp(p.position.y, 20, H - 20));
-    if (p.velocity.len() > 8) p.rotation = bearing(new V(), p.velocity);  // nose follows the motion
     p.gunTimer -= dt; p.stun -= dt; p.boost -= dt;
     p.throttle = clamp(p.velocity.len() / top, 0, 1);
     this.fuel = Math.max(0, this.fuel - this.fuelBurn * (0.5 + p.throttle) * dt);

@@ -12,7 +12,6 @@ const HULLS = {
 };
 const COLORS = { player: "#52dcf0", ally: "#f0c870", enemy: "#ff6b7a", ace: "#9a7dff" };
 const ABILITY_TEXT = { surge: "SURGE", chaff: "CHAFF", veil: "VEIL", pulse: "PULSE", patch: "PATCH", salvo: "SALVO", deepscan: "DEEP SCAN", ironhull: "IRON HULL" };
-const TOUCH = [["up", "▲", "move up"], ["down", "▼", "move down"], ["left", "◀", "move left"], ["right", "▶", "move right"]];
 
 const html = (ticket, lines) => `
 <div class="flight" role="application" aria-label="Flight combat">
@@ -29,9 +28,8 @@ const html = (ticket, lines) => `
     <div class="hud-ammo"><span data-f="guns"></span><span data-f="missiles"></span><span data-f="ability"></span></div>
     <button class="hud-btn exit" data-f="exit">Exit (Esc)</button>
   </div>
-  <div class="pad left" role="group" aria-label="Movement">
-    <div class="dpad-ring"></div>
-    ${TOUCH.map(([k, s, label]) => `<button data-ctl="${k}" class="dir ${k}" aria-label="${label}"><span>${s}</span></button>`).join("")}
+  <div class="pad left" role="group" aria-label="Movement joystick">
+    <div class="stick" data-stick><div class="stick-base"><div class="stick-thumb"></div></div></div>
   </div>
   <div class="pad right" role="group" aria-label="Actions">
     <button data-ctl="missile" class="round small m" aria-label="Missile"><span>MSL</span><small>F</small></button>
@@ -39,7 +37,7 @@ const html = (ticket, lines) => `
     <button data-ctl="fire" class="round fire" aria-label="Fire"><span>FIRE</span><small>Space</small></button>
   </div>
   <div class="overlay" data-f="overlay">${lines}</div>
-  <p class="help">Arrows move · Shift thrust forward · Space fire · F missile · Q ability · P pause · Esc exit</p><p class="rot">Turn your phone sideways for the best view</p>
+  <p class="help">Arrows or joystick move · Shift thrust forward · Space fire · F missile · Q ability · P pause · Esc exit</p><p class="rot">Turn your phone sideways for the best view</p>
 </div>`;
 
 export function startFlight(ticket, { story, onFinish }) {
@@ -53,6 +51,7 @@ export function startFlight(ticket, { story, onFinish }) {
   const canvas = host.querySelector("canvas"), g = canvas.getContext("2d");
   const sim = new Sim(ticket);
   const held = new Map(), keys = new Set(), tapped = { missile: false, ability: false };
+  const stick = { x: 0, y: 0, pointer: null };  // analog input in [-1, 1], from the joystick's own finger
   let phase = "brief", paused = false, last = 0, raf = 0, elapsed = 0, finished = false;
   const stars = Array.from({ length: 150 }, (_, i) => ({ x: (i * 997) % W, y: (i * 571) % H, z: 1 + (i % 3), s: 5 + (i % 7) * 4 }));
 
@@ -74,7 +73,26 @@ export function startFlight(ticket, { story, onFinish }) {
   addEventListener("keydown", keyDown); addEventListener("keyup", keyUp); addEventListener("blur", blur);
 
   // Each finger has its own pointer id, so several buttons can be held together.
+  const base = host.querySelector(".stick-base"), thumb = host.querySelector(".stick-thumb");
+  const setStick = (e) => {
+    const r = base.getBoundingClientRect(), R = r.width / 2;
+    let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R);
+    const len = Math.hypot(dx, dy), clampTo = len > R ? R / len : 1;
+    dx *= clampTo; dy *= clampTo;  // the thumb stays inside the circle
+    thumb.style.transform = `translate(${dx}px, ${dy}px)`;
+    const mag = Math.hypot(dx, dy) / R, dead = 0.12;  // small dead zone so a resting thumb does not drift
+    const k = mag < dead ? 0 : (mag - dead) / (1 - dead) / (mag || 1);
+    stick.x = dx * k / R; stick.y = dy * k / R;
+  };
+  const releaseStick = () => { stick.x = stick.y = 0; stick.pointer = null; thumb.style.transform = "translate(0px, 0px)"; };
   const press = (e) => {
+    if (e.target.closest("[data-stick]")) {
+      e.preventDefault();
+      stick.pointer = e.pointerId;
+      try { base.setPointerCapture(e.pointerId); } catch { /* capture is a bonus; move/up events still reach the page */ }
+      setStick(e);
+      return;
+    }
     const btn = e.target.closest("[data-ctl]");
     if (!btn) return;
     e.preventDefault();
@@ -84,12 +102,15 @@ export function startFlight(ticket, { story, onFinish }) {
     else { held.set(e.pointerId, ctl); btn.classList.add("on"); }
   };
   const release = e => {
+    if (e.pointerId === stick.pointer) return releaseStick();
     if (!held.has(e.pointerId)) return;
     const ctl = held.get(e.pointerId); held.delete(e.pointerId);
     if (![...held.values()].includes(ctl)) host.querySelector(`[data-ctl="${ctl}"]`)?.classList.remove("on");
   };
   host.addEventListener("pointerdown", press);
+  host.addEventListener("pointermove", e => { if (e.pointerId === stick.pointer) setStick(e); });
   host.addEventListener("pointerup", release);
+  base.addEventListener("lostpointercapture", releaseStick);
   host.addEventListener("pointercancel", release);
   host.addEventListener("pointerleave", release);
   host.addEventListener("contextmenu", e => e.preventDefault());
@@ -97,7 +118,10 @@ export function startFlight(ticket, { story, onFinish }) {
 
   const controls = () => {
     const on = c => keys.has(c) || [...held.values()].includes(c);
-    const c = { move: { x: (on("right") ? 1 : 0) - (on("left") ? 1 : 0), y: (on("down") ? 1 : 0) - (on("up") ? 1 : 0) },
+    // The joystick, when touched, is analog and wins; otherwise the keys give digital input.
+    const keyX = (on("right") ? 1 : 0) - (on("left") ? 1 : 0), keyY = (on("down") ? 1 : 0) - (on("up") ? 1 : 0);
+    const useStick = stick.x || stick.y;
+    const c = { move: useStick ? { x: stick.x, y: stick.y } : { x: keyX, y: keyY },
       thrust: on("thrust"), fire: on("fire"), missile: tapped.missile, ability: tapped.ability };
     tapped.missile = tapped.ability = false;
     return c;
@@ -176,7 +200,9 @@ export function startFlight(ticket, { story, onFinish }) {
     if (!pts) return;
     g.save(); g.translate(plane.position.x, plane.position.y); g.rotate(plane.rotation * Math.PI / 180);
     const s = plane.radius;
-    g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x * s, -y * s) : g.moveTo(x * s, -y * s))); g.closePath();
+    // Hull points are drawn with +y forward. The simulation's heading is (-sin, cos) of the
+    // rotation, which is exactly canvas rotation applied to +y, so the nose matches movement.
+    g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x * s, y * s) : g.moveTo(x * s, y * s))); g.closePath();
     g.fillStyle = color + "40"; g.fill(); g.strokeStyle = color; g.lineWidth = 2; g.stroke(); g.restore();
   }
 

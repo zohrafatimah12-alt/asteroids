@@ -141,8 +141,13 @@ body.in-flight{overflow:hidden}
 /* Left: circular directional pad */
 .pad{position:absolute;bottom:max(12px,env(safe-area-inset-bottom));pointer-events:auto;z-index:2}
 .pad.left{left:max(12px,env(safe-area-inset-left));width:clamp(150px,22vw,200px);height:clamp(150px,22vw,200px)}
+/* 360-degree analog joystick: a circular base with a thumbstick that follows the finger. */
+.stick{position:absolute;inset:0;touch-action:none;-webkit-user-select:none}
+.stick-base{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(82,220,240,.5);background:radial-gradient(circle,rgba(20,40,80,.4) 45%,rgba(10,16,40,.2) 75%);box-shadow:0 0 18px rgba(82,220,240,.18) inset;touch-action:none}
+.stick-thumb{position:absolute;left:50%;top:50%;width:40%;height:40%;margin:-20% 0 0 -20%;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(190,240,255,.9),rgba(40,80,130,.85) 70%);border:2px solid rgba(82,220,240,.8);box-shadow:0 0 14px rgba(82,220,240,.45);transition:transform .12s ease-out;pointer-events:none}
+.stick-base:active .stick-thumb{transition:none}
 .dpad-ring{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(82,220,240,.45);background:radial-gradient(circle,rgba(20,40,80,.35) 40%,rgba(10,16,40,.15) 70%);box-shadow:0 0 18px rgba(82,220,240,.18) inset}
-.pad.left .dir{position:absolute;width:clamp(56px,7.5vw,72px);height:clamp(56px,7.5vw,72px);border-radius:50%;background:rgba(14,22,52,.75);border:1px solid rgba(110,160,255,.5);color:#dfe8ff;font-size:clamp(18px,2.5vw,24px);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none}
+.pad.left .dir-unused{position:absolute;width:clamp(56px,7.5vw,72px);height:clamp(56px,7.5vw,72px);border-radius:50%;background:rgba(14,22,52,.75);border:1px solid rgba(110,160,255,.5);color:#dfe8ff;font-size:clamp(18px,2.5vw,24px);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none}
 .pad.left .up{left:50%;top:0;transform:translateX(-50%)}.pad.left .down{left:50%;bottom:0;transform:translateX(-50%)}
 .pad.left .left{left:0;top:50%;transform:translateY(-50%)}.pad.left .right{right:0;top:50%;transform:translateY(-50%)}
 /* Right: round action buttons */

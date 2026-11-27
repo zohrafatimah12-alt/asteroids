@@ -54,5 +54,37 @@ const shooter = new Sim(ticket("defence", 1, 1));
 for (let i = 0; i < 30; i++) shooter.step({ ...NO_INPUT, fire: true }, 1 / 30);
 check(shooter.shots > 0, "Space fires");
 
+// 360-degree joystick: the ship moves and faces every direction, and fires along its nose.
+const unit = a => ({ x: Math.cos(a * Math.PI / 180), y: Math.sin(a * Math.PI / 180) });
+const headingOf = r => ({ x: -Math.sin(r * Math.PI / 180), y: Math.cos(r * Math.PI / 180) });
+for (let deg = 0; deg < 360; deg += 30) {
+  const sim = new Sim(ticket("defence", 1, 1));
+  const dir = unit(deg);
+  for (let i = 0; i < 120; i++) sim.step({ ...NO_INPUT, move: { x: dir.x * 0.9, y: dir.y * 0.9 } }, 1 / 30);
+  const v = sim.player.velocity, speed = Math.hypot(v.x, v.y);
+  const alongMove = (v.x * dir.x + v.y * dir.y) / (speed || 1);
+  const h = headingOf(sim.player.rotation);
+  const noseDot = h.x * dir.x + h.y * dir.y;
+  check(speed > 100 && alongMove > 0.98, `joystick ${deg}deg: ship moves that way`);
+  check(noseDot > 0.98, `joystick ${deg}deg: nose faces the movement`);
+  // Capture the shell at the moment it leaves the ship; enemies may remove it later in the frame.
+  let shot = null;
+  const fireNow = sim.fire.bind(sim);
+  sim.fire = (plane, ...rest) => { fireNow(plane, ...rest); if (plane.role === "player" && !shot) shot = sim.rounds[sim.rounds.length - 1]; };
+  sim.step({ ...NO_INPUT, fire: true }, 1 / 30);
+  const sd = shot ? (shot.velocity.x * h.x + shot.velocity.y * h.y) / shot.velocity.len() : 0;
+  check(shot && sd > 0.98, `joystick ${deg}deg: shots leave along the nose`);
+}
+{
+  const sim = new Sim(ticket("defence", 1, 1));
+  for (let i = 0; i < 60; i++) sim.step({ ...NO_INPUT, move: { x: 0, y: -1 } }, 1 / 30);
+  const r0 = sim.player.rotation;
+  for (let i = 0; i < 60; i++) sim.step({ ...NO_INPUT, fire: true }, 1 / 30);
+  check(Math.abs(sim.player.rotation - r0) < 0.5 && sim.player.velocity.len() < 60, "released stick: ship keeps its heading and slows gently");
+  const turnStart = new Sim(ticket("defence", 1, 1));
+  turnStart.step({ ...NO_INPUT, move: { x: -1, y: 0 } }, 1 / 30);
+  check(Math.abs(turnStart.player.rotation - (-90)) < 60, "turning is limited per frame (no snap)");
+}
+
 console.log(failures ? `${failures} check(s) failed` : "all browser flight checks passed");
 process.exit(failures ? 1 : 0);
