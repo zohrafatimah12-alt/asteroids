@@ -20,20 +20,23 @@ const html = (ticket, lines) => `
   <div class="hud">
     <div class="hud-top"><b class="gold" data-f="title"></b><span data-f="type"></span><span class="dim" data-f="weather"></span></div>
     <div class="hud-msg" data-f="message"></div>
+    <div class="hud-pause"><button class="pause-pill" data-f="pause" aria-label="Pause">❚❚</button></div>
     <div class="hud-left">
       <div class="bar"><span>HULL</span><i data-f="hull"></i></div>
       <div class="bar"><span>FUEL</span><i data-f="fuel" class="fuel"></i></div>
       <div class="bar"><span>THRUST</span><i data-f="thrust" class="thrust"></i></div>
     </div>
     <div class="hud-ammo"><span data-f="guns"></span><span data-f="missiles"></span><span data-f="ability"></span></div>
-    <button class="hud-btn" data-f="pause">Pause (P)</button>
     <button class="hud-btn exit" data-f="exit">Exit (Esc)</button>
   </div>
-  <div class="pad left">${TOUCH.slice(0, 4).map(([k, s, label]) => `<button data-ctl="${k}" aria-label="${label}">${s}</button>`).join("")}</div>
-  <div class="pad right">
-    <button data-ctl="missile" class="act" aria-label="Missile">MISSILE<small>F</small></button>
-    <button data-ctl="ability" class="act abil" aria-label="Ability">ABILITY<small>Q</small></button>
-    <button data-ctl="fire" class="fire" aria-label="Fire">FIRE<small>Space</small></button>
+  <div class="pad left" role="group" aria-label="Movement">
+    <div class="dpad-ring"></div>
+    ${TOUCH.map(([k, s, label]) => `<button data-ctl="${k}" class="dir ${k}" aria-label="${label}"><span>${s}</span></button>`).join("")}
+  </div>
+  <div class="pad right" role="group" aria-label="Actions">
+    <button data-ctl="missile" class="round small m" aria-label="Missile"><span>MSL</span><small>F</small></button>
+    <button data-ctl="ability" class="round small a" aria-label="Ability"><span>ABL</span><small>Q</small></button>
+    <button data-ctl="fire" class="round fire" aria-label="Fire"><span>FIRE</span><small>Space</small></button>
   </div>
   <div class="overlay" data-f="overlay">${lines}</div>
   <p class="help">Arrows move · Shift thrust forward · Space fire · F missile · Q ability · P pause · Esc exit</p><p class="rot">Turn your phone sideways for the best view</p>
