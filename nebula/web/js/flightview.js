@@ -12,7 +12,7 @@ const HULLS = {
 };
 const COLORS = { player: "#52dcf0", ally: "#f0c870", enemy: "#ff6b7a", ace: "#9a7dff" };
 const ABILITY_TEXT = { surge: "SURGE", chaff: "CHAFF", veil: "VEIL", pulse: "PULSE", patch: "PATCH", salvo: "SALVO", deepscan: "DEEP SCAN", ironhull: "IRON HULL" };
-const TOUCH = [["up", "▲", "throttle up"], ["down", "▼", "throttle down"], ["left", "◀", "turn left"], ["right", "▶", "turn right"]];
+const TOUCH = [["up", "▲", "move up"], ["down", "▼", "move down"], ["left", "◀", "move left"], ["right", "▶", "move right"]];
 
 const html = (ticket, lines) => `
 <div class="flight" role="application" aria-label="Flight combat">
@@ -36,7 +36,7 @@ const html = (ticket, lines) => `
     <button data-ctl="fire" class="fire" aria-label="Fire">FIRE<small>Space</small></button>
   </div>
   <div class="overlay" data-f="overlay">${lines}</div>
-  <p class="help">←/→ turn · ↑/↓ throttle · Space fire · F missile · Q ability · P pause · Esc exit</p><p class="rot">Turn your phone sideways for the best view</p>
+  <p class="help">Arrows move · Space fire · F missile · Q ability · P pause · Esc exit</p><p class="rot">Turn your phone sideways for the best view</p>
 </div>`;
 
 export function startFlight(ticket, { story, onFinish }) {
@@ -94,7 +94,7 @@ export function startFlight(ticket, { story, onFinish }) {
 
   const controls = () => {
     const on = c => keys.has(c) || [...held.values()].includes(c);
-    const c = { turn: (on("right") ? 1 : 0) - (on("left") ? 1 : 0), throttle: (on("up") ? 1 : 0) - (on("down") ? 1 : 0),
+    const c = { move: { x: (on("right") ? 1 : 0) - (on("left") ? 1 : 0), y: (on("down") ? 1 : 0) - (on("up") ? 1 : 0) },
       fire: on("fire"), missile: tapped.missile, ability: tapped.ability };
     tapped.missile = tapped.ability = false;
     return c;
@@ -117,12 +117,13 @@ export function startFlight(ticket, { story, onFinish }) {
   }
 
   function showEnd() {
+    if (phase === "done") return;  // the result is shown and reported once
     const r = sim.result();
     const ov = q("overlay");
     ov.hidden = false;
-    ov.innerHTML = `<h2 class="${r.success ? "good" : "bad"}">${r.success ? "MISSION COMPLETE" : "MISSION FAILED"}</h2>
+    ov.innerHTML = `<h2 class="${r.success ? "good" : "bad"}">${r.success ? "MISSION ACCOMPLISHED" : "MISSION FAILED"}</h2>
       <p>Kills ${r.kills} · Accuracy ${r.shots ? Math.round(r.hits / r.shots * 100) : 0}% · Hull damage ${r.damage_taken}% · Time ${r.duration}s</p>
-      <button class="primary big-go" data-f="report">Report to command (Enter)</button>`;
+      <button class="primary big-go" data-f="report">Return to debrief</button>`;
     phase = "done";
     q("report").onclick = () => cleanup(r, false);
   }
@@ -209,7 +210,7 @@ export function startFlight(ticket, { story, onFinish }) {
     const dt = Math.min(0.05, (t - last) / 1000); last = t;
     update(dt);
     drawWorld(); updateHud();
-    if (phase !== "done" || !finished) raf = requestAnimationFrame(frame);
+    if (phase !== "done") raf = requestAnimationFrame(frame);  // the world stops once the result is shown
   }
   host.addEventListener("click", e => {
     if (e.target.closest('[data-f="launch"]')) launch();

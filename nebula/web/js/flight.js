@@ -92,6 +92,7 @@ export class Sim {
     this.missiles = 2 + (["fighter", "interceptor", "bomber"].includes(p.category) ? 1 : 0);
     this.missileTimer = 0; this.fuel = p.fuel_now; this.startFuel = p.fuel_now;
     this.fuelBurn = 0.30 * (1.35 - p.range / 150);
+    this.moveSpeed = 90 + p.speed * 2.2;  // pixels per second at full thrust
     this.radar = (260 + p.radar * 6) * this.vision * (ticket.radar_boost || 1);
     this.groundBonus = ["bomber", "heavy"].includes(p.category) ? 1.8 : 1;
     this.enemies = []; this.rounds = []; this.fragments = []; this.particles = []; this.sounds = [];
@@ -139,14 +140,20 @@ export class Sim {
 
   playerStep(c, dt) {
     const p = this.player;
-    p.steer(c.turn, dt);
-    p.throttle = clamp(p.throttle + c.throttle * dt * 1.2, 0, 1);
-    p.fly(dt);
-    p.position = p.position.add(this.wind.mul(dt));
+    // Direct movement: the arrow keys push the ship in screen directions, and it eases
+    // toward that velocity so motion stays smooth while a key is held.
+    const mx = clamp(c.move?.x ?? 0, -1, 1), my = clamp(c.move?.y ?? 0, -1, 1);
+    const len = Math.hypot(mx, my) || 1;
+    const top = this.moveSpeed * (p.stun > 0 ? 0.3 : 1) * (p.boost > 0 ? 1.8 : 1);
+    const target = new V(mx / len * top * (mx || my ? 1 : 0), my / len * top * (mx || my ? 1 : 0));
+    p.velocity = p.velocity.add(target.sub(p.velocity).mul(Math.min(1, 7 * dt)));
+    p.position = p.position.add(p.velocity.mul(dt)).add(this.wind.mul(dt));
     p.position = new V(clamp(p.position.x, 20, W - 20), clamp(p.position.y, 20, H - 20));
+    if (p.velocity.len() > 8) p.rotation = bearing(new V(), p.velocity);  // nose follows the motion
+    p.gunTimer -= dt; p.stun -= dt; p.boost -= dt;
+    p.throttle = clamp(p.velocity.len() / top, 0, 1);
     this.fuel = Math.max(0, this.fuel - this.fuelBurn * (0.5 + p.throttle) * dt);
-    if (this.fuel <= 0) p.throttle = 0;
-    if (c.fire && p.gunTimer <= 0 && this.ammo > 0) {
+    if (c.fire && p.gunTimer <= 0 && this.ammo > 0 && p.hp > 0) {
       p.gunTimer = 0.14; this.ammo--; this.shots++;
       this.fire(p, "player", 11, 1.5, 640); this.sounds.push("gun");
     }
@@ -345,13 +352,20 @@ export class Sim {
 }
 
 // Simple pilot used by the tests: flies to objectives and fires at what is in front.
+// Bot that moves in four directions toward its goal, fires at what is ahead, and uses
+// its ability when hurt. Used by the tests to play every mission type to its end.
 export function autopilot(sim) {
   const p = sim.player, pending = sim.sites.filter(s => !s.done);
   const foes = [...sim.enemies, ...sim.fragments];
-  let goal = pending.length ? pending[0].pos : foes.length ? foes.reduce((a, b) => (p.position.dist(a.position) <= p.position.dist(b.position) ? a : b)).position : new V(W / 2, H / 2);
-  const diff = angleDiff(p.rotation, bearing(p.position, goal));
-  const nearby = foes.some(e => p.position.dist(e.position) < 450 && Math.abs(angleDiff(p.rotation, bearing(p.position, e.position))) < 9);
-  return { turn: clamp(diff / 12, -1, 1), throttle: pending.length && p.position.dist(goal) < 110 || p.position.dist(goal) < 160 ? -1 : 1,
-    fire: nearby, missile: nearby && sim.rand.next() < 0.03, ability: p.hp < p.maxHp * 0.7 };
+  const goal = pending.length ? pending[0].pos
+    : sim.kind === "escort" && sim.structure ? new V(W - 60, sim.structure.position.y)
+    : sim.structure && sim.structure.shape !== "ground" && sim.kind !== "emergency" ? sim.structure.position.add(new V(-120, 0))
+    : foes.length ? foes.reduce((a, b) => (p.position.dist(a.position) <= p.position.dist(b.position) ? a : b)).position
+    : new V(W / 2, H / 2);
+  const d = goal.sub(p.position), n = d.len() || 1;
+  const near = n < 30;
+  const move = { x: near ? 0 : d.x / n, y: near ? 0 : d.y / n };
+  const nearby = foes.some(e => p.position.dist(e.position) < 450 && Math.abs(angleDiff(p.rotation, bearing(p.position, e.position))) < 25);
+  return { move, fire: nearby, missile: nearby && sim.rand.next() < 0.03, ability: p.hp < p.maxHp * 0.7 };
 }
-export const NO_INPUT = { turn: 0, throttle: 0, fire: false, missile: false, ability: false };
+export const NO_INPUT = { move: { x: 0, y: 0 }, fire: false, missile: false, ability: false };
