@@ -92,3 +92,53 @@ def test_error_responses_keep_cors_headers(monkeypatch):
     rude = client.get("/api/world", headers={"Origin": "https://evil.example"})
     assert "access-control-allow-origin" not in rude.headers
     importlib.reload(api)
+
+
+def test_sortie_fails_clearly_without_a_screen_and_keeps_the_error(monkeypatch, tmp_path):
+    from nebula import api
+    importlib.reload(api)
+    client = TestClient(api.app)
+    cid = client.post("/api/campaigns", json={"player": "T", "seed": 2}).json()["id"]
+    monkeypatch.setattr(api.sys, "platform", "linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    no_screen = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1})
+    assert no_screen.status_code == 409 and "no screen" in no_screen.json()["detail"]
+    monkeypatch.setenv("DISPLAY", ":0")
+
+    class Crashed:
+        def poll(self):
+            return 1
+
+    def crash(ticket):
+        ticket.with_suffix(".log").write_text("boot\npygame.error: No video device\n")
+        return Crashed()
+
+    monkeypatch.setattr(api, "launch_combat", crash)
+    sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1}).json()["id"]
+    status = client.get(f"/api/sorties/{sid}").json()
+    assert status["status"] == "aborted" and "pygame.error: No video device" in status["message"]
+    assert "closed without a result" not in status["message"]
+    monkeypatch.undo()
+    importlib.reload(api)
+
+
+def test_leaving_before_the_mission_is_not_a_crash(monkeypatch):
+    from nebula import api
+    importlib.reload(api)
+    client = TestClient(api.app)
+    cid = client.post("/api/campaigns", json={"player": "T", "seed": 2}).json()["id"]
+    monkeypatch.setenv("DISPLAY", ":0")
+
+    class Left:
+        def poll(self):
+            return 0
+
+    def leave(ticket):
+        ticket.with_name(ticket.stem + ".left.json").write_text("{}")
+        return Left()
+
+    monkeypatch.setattr(api, "launch_combat", leave)
+    sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1}).json()["id"]
+    assert client.get(f"/api/sorties/{sid}").json()["message"].startswith("You left the mission")
+    importlib.reload(api)

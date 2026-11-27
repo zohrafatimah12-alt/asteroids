@@ -314,8 +314,16 @@ def sortie_dir() -> Path:
 
 def launch_combat(ticket: Path) -> subprocess.Popen:
     # Fixed argv, no shell; the only variable is a path we generated ourselves.
+    # Its errors go to a log beside the ticket, so a failed start can say why.
+    log = ticket.with_suffix(".log").open("w")
     return subprocess.Popen([sys.executable, "-m", "nebula.combat", "--ticket", str(ticket)],
-                            cwd=ROOT, env=os.environ.copy())
+                            cwd=ROOT, env=os.environ.copy(), stdout=log, stderr=log, stdin=subprocess.DEVNULL)
+
+
+def _last_error(ticket: Path) -> str:
+    log = ticket.with_suffix(".log")
+    lines = [l for l in log.read_text(errors="replace").splitlines() if l.strip()] if log.exists() else []
+    return lines[-1][:200] if lines else ""
 
 
 @app.post("/api/campaigns/{cid}/sorties", status_code=201)
@@ -327,6 +335,8 @@ def post_sortie(cid: int, body: SortieRequest):
     # "Command a wing" option stays available.
     if os.environ.get("NEBULA_ALLOW_COMBAT", "1") == "0":
         raise RuleError("Flying the sortie needs a desktop. Use Command a wing on this server.")
+    if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        raise RuleError("This server has no screen, so the combat window cannot open. Use Command a wing.")
 
     with _lock, db.connect() as con:
         state = db.load(con, cid)
@@ -359,6 +369,7 @@ def get_sortie(sid: str):
         process = _processes.get(sid)
         # Check the process first, so a result written just before exit is not missed.
         exited = process is None or process.poll() is not None
+        ticket = sortie_dir() / f"{sid}.json"
         if result_file.exists():
             result = json.loads(result_file.read_text())
             state = db.load(con, row["campaign_id"])
@@ -373,8 +384,13 @@ def get_sortie(sid: str):
                 db.save(con, row["campaign_id"], state)
             except RuleError as exc:
                 message, status = str(exc), "void"
+        elif (sortie_dir() / f"{sid}.left.json").exists():
+            message, status = "You left the mission before it began. Nothing changed.", "aborted"
         elif exited:
-            message, status = "The combat window closed without a result. Nothing changed.", "aborted"
+            detail = _last_error(ticket)
+            message = "The combat window stopped before the mission finished. Nothing changed."
+            message += f" Reason: {detail}" if detail else " The server may have restarted during the sortie."
+            status = "aborted"
         else:
             return {"id": sid, "status": "flying", "message": ""}
         con.execute("UPDATE sorties SET status=?, message=? WHERE id=?", (status, message, sid))

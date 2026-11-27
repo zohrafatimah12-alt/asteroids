@@ -24,6 +24,8 @@ def main():
         parser.error("that level is a strategic mission; play it in the command interface")
     result = run(ticket, auto=args.autopilot, sound=not args.mute)
     if result is None:
+        if args.ticket:  # the player stood down: record that, distinct from a crash
+            args.ticket.with_name(args.ticket.stem + ".left.json").write_text("{}")
         return
     if args.ticket:
         target = args.ticket.with_name(args.ticket.stem + ".result.json")
