@@ -154,6 +154,10 @@ async function briefing(el, current) {
   <div class="small dim">condition ${p.condition} · fuel ${p.fuel} · ammo ${p.ammo} · range ${p.stats.range}</div>
   <div class="row"><button class="primary" data-fly="${p.uid}">LAUNCH MISSION</button>${actionButton(`Command a wing (${Math.round(m.odds[p.uid] * 100)}% odds)`, "delegate", { level, uid: p.uid })}${actionButton("Service", "service", { uid: p.uid, kind: "all" })}</div></div>`).join("")
     : m.choices.map(c => `<div class="panel"><h3>${esc(c.label)}</h3><p>${esc(c.text)}</p><div class="small dim">Cost: ${esc(cost(c.cost))}</div><div class="row">${actionButton("Choose", "decide", { level, kind: c.id })}</div></div>`).join("")}</div>`;
+  el.insertAdjacentHTML("beforeend", `<details class="panel controls-help"><summary>Flight controls (desktop combat window)</summary>
+  <p><kbd>↑</kbd><kbd>↓</kbd> throttle · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>W</kbd><kbd>S</kbd> and <kbd>A</kbd><kbd>D</kbd> also work</p>
+  <p><kbd>Space</kbd> guns · <kbd>F</kbd> missile · <kbd>Q</kbd> aircraft ability · <kbd>P</kbd> pause · <kbd>Esc</kbd> abort · <kbd>Enter</kbd> take off</p>
+  <p class="small dim">Flying happens in a separate window on the computer running NEBULA. Phones and tablets can use <b>Command a wing</b>.</p></details>`);
   return () => el.querySelectorAll("[data-fly]").forEach(b => b.onclick = async () => {
     b.disabled = true;
     try {

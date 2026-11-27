@@ -100,3 +100,22 @@ body.calm *{animation:none!important;transition:none!important}body.calm .cinema
 .voicebar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}.voicebar .subtitle{color:var(--gold)}
 .alert{border-color:var(--red)}.reactions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px}.option{display:flex;flex-direction:column;gap:4px;padding:12px}
 .objective{display:flex;gap:14px;align-items:center;margin-top:12px;border-color:var(--gold)}.objective b{flex:1;font-size:18px}
+
+/* Responsive layout: laptop (default), tablet (<=1000px), phone (<=760px), small phone (<=420px). */
+img,svg{max-width:100%}
+.controls-help{font-size:13px;margin-top:10px}.controls-help kbd{border:1px solid var(--line);border-radius:3px;padding:0 5px;font-family:inherit;color:var(--cyan)}
+@media(max-width:1000px){main{padding:12px}.grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}.nationgrid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){
+  #top{gap:8px;padding:6px 10px}nav{gap:0}nav a{padding:4px 6px;font-size:13px}.brand{font-size:17px}
+  .grid,.split{grid-template-columns:1fr}.res{flex-wrap:wrap;gap:6px}
+  #map{min-height:240px}.levels{grid-template-columns:repeat(5,1fr)}
+  .menu h1{letter-spacing:.12em}.menu button{min-width:0;width:100%}
+  .film .subtitle{min-height:0}.shot>.speech p{font-size:17px;min-height:0}
+  .toast,#toast{left:8px;right:8px;max-width:none}
+}
+@media(max-width:420px){
+  nav a{padding:3px 4px;font-size:12px}.levels{grid-template-columns:repeat(4,1fr)}
+  h2{font-size:17px}button{padding:8px 10px;min-height:40px}
+  .stat{grid-template-columns:76px 1fr 30px}.speech{flex-direction:column;align-items:center}
+}
+@media(orientation:landscape) and (max-height:500px){.film{min-height:0}.menu{min-height:0}.planet{width:min(260px,40vw)}}
