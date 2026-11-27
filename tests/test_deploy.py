@@ -142,3 +142,26 @@ def test_leaving_before_the_mission_is_not_a_crash(monkeypatch):
     sid = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1}).json()["id"]
     assert client.get(f"/api/sorties/{sid}").json()["message"].startswith("You left the mission")
     importlib.reload(api)
+
+
+def test_browser_sortie_returns_ticket_and_accepts_one_result(monkeypatch):
+    from nebula import api
+    importlib.reload(api)
+    client = TestClient(api.app)
+    monkeypatch.setenv("NEBULA_ALLOW_COMBAT", "0")  # servers without a screen must still work
+    cid = client.post("/api/campaigns", json={"player": "T", "seed": 2}).json()["id"]
+    made = client.post(f"/api/campaigns/{cid}/sorties", json={"level": 1, "uid": 1, "mode": "browser"})
+    assert made.status_code == 201 and made.json()["ticket"]["mission"]["level"] == 1
+    sid = made.json()["id"]
+    assert client.get(f"/api/sorties/{sid}/ticket").json()["plane"]["speed"] > 0
+    assert client.get(f"/api/sorties/{sid}").json()["status"] == "flying"
+    result = {"success": True, "kills": 3, "shots": 20, "hits": 9, "damage_taken": 10, "duration": 40.0,
+              "fuel_used": 12, "ammo_used": 20, "wingman_lost": 0}
+    done = client.post(f"/api/sorties/{sid}/result", json=result)
+    assert done.status_code == 200 and done.json()["status"] == "complete"
+    assert client.get(f"/api/campaigns/{cid}").json()["completed"] == {"1": "flown"}
+    again = client.post(f"/api/sorties/{sid}/result", json=result)
+    assert again.status_code == 409
+    assert client.post(f"/api/sorties/{sid}/result", json={"success": True, "kills": -1}).status_code == 422
+    monkeypatch.delenv("NEBULA_ALLOW_COMBAT")
+    importlib.reload(api)

@@ -107,6 +107,7 @@ class Label(BaseModel):
 class SortieRequest(BaseModel):
     level: int = Field(ge=1, le=110)
     uid: int
+    mode: str = Field(default="desktop", pattern="^(desktop|browser)$")
 
 
 def country_profile(state, cid: str) -> dict:
@@ -333,9 +334,10 @@ def post_sortie(cid: int, body: SortieRequest):
     # Pygame needs a desktop window on the machine running the server. Hosts without
     # one (such as PythonAnywhere) set NEBULA_ALLOW_COMBAT=0; the real odds-based
     # "Command a wing" option stays available.
-    if os.environ.get("NEBULA_ALLOW_COMBAT", "1") == "0":
+    browser = body.mode == "browser"
+    if not browser and os.environ.get("NEBULA_ALLOW_COMBAT", "1") == "0":
         raise RuleError("Flying the sortie needs a desktop. Use Command a wing on this server.")
-    if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+    if not browser and sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         raise RuleError("This server has no screen, so the combat window cannot open. Use Command a wing.")
 
     with _lock, db.connect() as con:
@@ -352,8 +354,67 @@ def post_sortie(cid: int, body: SortieRequest):
         ticket.write_text(json.dumps(build_ticket(state, mission, plane)))
         con.execute("INSERT INTO sorties VALUES (?,?,?,?,?,?,datetime('now'))",
                     (sid, cid, body.level, body.uid, "flying", ""))
+    if browser:
+        (sortie_dir() / f"{sid}.browser").write_text("")
+        return {"id": sid, "status": "flying", "ticket": json.loads(ticket.read_text())}
     _processes[sid] = launch_combat(ticket)
     return {"id": sid, "status": "flying"}
+
+
+def _is_browser(sid: str) -> bool:
+    return (sortie_dir() / f"{sid}.browser").exists()
+
+
+def _settle(con, row, result: dict) -> tuple[str, str]:
+    """Apply a finished sortie to the campaign exactly once. Returns (status, message)."""
+    state = db.load(con, row["campaign_id"])
+    state["_records"] = []
+    try:
+        before = copy.deepcopy(state)
+        message = missions.apply_combat(state, row["level"], row["uid"], result)
+        state["last_debrief"] = missions.debrief(before, state, row["level"], result)
+        commander.deliver(state)
+        stages.track_rank(state)
+        db.save(con, row["campaign_id"], state)
+        return "complete", message
+    except RuleError as exc:
+        return "void", str(exc)
+
+
+class SortieResult(BaseModel):
+    success: bool
+    kills: int = Field(default=0, ge=0, le=500)
+    shots: int = Field(default=0, ge=0, le=100000)
+    hits: int = Field(default=0, ge=0, le=100000)
+    damage_taken: int = Field(default=0, ge=0, le=100)
+    duration: float = Field(default=0.0, ge=0, le=100000)
+    fuel_used: int = Field(default=0, ge=0, le=1000)
+    ammo_used: int = Field(default=0, ge=0, le=100000)
+    wingman_lost: int = Field(default=0, ge=0, le=1)
+
+
+@app.post("/api/sorties/{sid}/result")
+def post_sortie_result(sid: str, body: SortieResult):
+    """Browser combat reports its outcome here. Accepted once, while the sortie is flying."""
+    with _lock, db.connect() as con:
+        row = con.execute("SELECT * FROM sorties WHERE id=?", (sid,)).fetchone()
+        if not row:
+            raise KeyError(sid)
+        if row["status"] != "flying" or not _is_browser(sid):
+            raise RuleError("This sortie has already been reported")
+        result = body.model_dump()
+        status, message = _settle(con, row, result)
+        con.execute("UPDATE sorties SET status=?, message=? WHERE id=?", (status, message, sid))
+        return {"id": sid, "status": status, "message": message}
+
+
+@app.get("/api/sorties/{sid}/ticket")
+def get_sortie_ticket(sid: str):
+    with db.connect() as con:
+        row = con.execute("SELECT status FROM sorties WHERE id=?", (sid,)).fetchone()
+    if not row or row["status"] != "flying" or not _is_browser(sid):
+        raise KeyError(sid)
+    return json.loads((sortie_dir() / f"{sid}.json").read_text())
 
 
 @app.get("/api/sorties/{sid}")
@@ -371,21 +432,11 @@ def get_sortie(sid: str):
         exited = process is None or process.poll() is not None
         ticket = sortie_dir() / f"{sid}.json"
         if result_file.exists():
-            result = json.loads(result_file.read_text())
-            state = db.load(con, row["campaign_id"])
-            state["_records"] = []
-            try:
-                before = copy.deepcopy(state)
-                message = missions.apply_combat(state, row["level"], row["uid"], result)
-                state["last_debrief"] = missions.debrief(before, state, row["level"], result)
-                status = "complete"
-                commander.deliver(state)
-                stages.track_rank(state)
-                db.save(con, row["campaign_id"], state)
-            except RuleError as exc:
-                message, status = str(exc), "void"
+            status, message = _settle(con, row, json.loads(result_file.read_text()))
         elif (sortie_dir() / f"{sid}.left.json").exists():
             message, status = "You left the mission before it began. Nothing changed.", "aborted"
+        elif _is_browser(sid):
+            return {"id": sid, "status": "flying", "message": ""}
         elif exited:
             detail = _last_error(ticket)
             message = "The combat window stopped before the mission finished. Nothing changed."

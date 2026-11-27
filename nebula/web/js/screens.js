@@ -4,6 +4,7 @@ import { esc, cap, flag, craft, meter, bars, line, toast } from "./ui.js";
 import { MODES, renderMap, zoom } from "./map.js";
 import { jointScreen } from "./stages.js";
 import { cue } from "./audio.js";
+import { startFlight } from "./flightview.js";
 import { menu, select, login, settings, crisis } from "./front.js";
 import { intro } from "./cinema.js";
 import { voiceBar, bindVoice } from "./voice.js";
@@ -161,8 +162,21 @@ async function briefing(el, current) {
   return () => el.querySelectorAll("[data-fly]").forEach(b => b.onclick = async () => {
     b.disabled = true;
     try {
-      const sortie = await api(`/campaigns/${G().id}/sorties`, { level, uid: Number(b.dataset.fly) });
-      S.ui.sortie = sortie.id; go("combat");
+      const id = G().id;
+      const sortie = await api(`/campaigns/${id}/sorties`, { level, uid: Number(b.dataset.fly), mode: "browser" });
+      startFlight(sortie.ticket, {
+        story: m.story,
+        onFinish: async (result) => {
+          // Leaving before take-off reports nothing; a mission report updates the campaign once.
+          if (!result) return go("briefing");
+          try {
+            const { message } = await api(`/sorties/${sortie.id}/result`, result);
+            setGame(await api(`/campaigns/${id}`));
+            toast(message, !result.success);
+            go("debrief");
+          } catch (err) { toast(err.message, true); go("briefing"); }
+        },
+      });
     } catch (e) { toast(e.message, true); b.disabled = false; }
   });
 }
