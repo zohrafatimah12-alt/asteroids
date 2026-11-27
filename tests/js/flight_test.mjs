@@ -44,6 +44,12 @@ for (const [name, [dx, dy]] of Object.entries(dirs)) {
   check(along && across, `arrow ${name} moves the ship ${name}`);
 }
 
+const thrusting = new Sim(ticket("defence", 1, 1));
+const t0 = thrusting.player.position.clone();
+for (let i = 0; i < 30; i++) thrusting.step({ ...NO_INPUT, thrust: true }, 1 / 30);
+const moved = thrusting.player.position.sub(t0);
+check(moved.x > 50 && Math.abs(moved.y) < 5, "Shift thrust moves the ship along its nose (facing right at start)");
+
 const shooter = new Sim(ticket("defence", 1, 1));
 for (let i = 0; i < 30; i++) shooter.step({ ...NO_INPUT, fire: true }, 1 / 30);
 check(shooter.shots > 0, "Space fires");

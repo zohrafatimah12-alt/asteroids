@@ -36,7 +36,7 @@ const html = (ticket, lines) => `
     <button data-ctl="fire" class="fire" aria-label="Fire">FIRE<small>Space</small></button>
   </div>
   <div class="overlay" data-f="overlay">${lines}</div>
-  <p class="help">Arrows move · Space fire · F missile · Q ability · P pause · Esc exit</p><p class="rot">Turn your phone sideways for the best view</p>
+  <p class="help">Arrows move · Shift thrust forward · Space fire · F missile · Q ability · P pause · Esc exit</p><p class="rot">Turn your phone sideways for the best view</p>
 </div>`;
 
 export function startFlight(ticket, { story, onFinish }) {
@@ -54,7 +54,7 @@ export function startFlight(ticket, { story, onFinish }) {
   const stars = Array.from({ length: 150 }, (_, i) => ({ x: (i * 997) % W, y: (i * 571) % H, z: 1 + (i % 3), s: 5 + (i % 7) * 4 }));
 
   // ---- input: keyboard and touch both set the same control flags ----
-  const KEYS = { ArrowLeft: "left", a: "left", ArrowRight: "right", d: "right", ArrowUp: "up", w: "up", ArrowDown: "down", s: "down", " ": "fire" };
+  const KEYS = { ArrowLeft: "left", a: "left", ArrowRight: "right", d: "right", ArrowUp: "up", w: "up", ArrowDown: "down", s: "down", " ": "fire", Shift: "thrust" };
   const keyDown = e => {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === "Escape") { e.preventDefault(); return exit(); }
@@ -95,7 +95,7 @@ export function startFlight(ticket, { story, onFinish }) {
   const controls = () => {
     const on = c => keys.has(c) || [...held.values()].includes(c);
     const c = { move: { x: (on("right") ? 1 : 0) - (on("left") ? 1 : 0), y: (on("down") ? 1 : 0) - (on("up") ? 1 : 0) },
-      fire: on("fire"), missile: tapped.missile, ability: tapped.ability };
+      thrust: on("thrust"), fire: on("fire"), missile: tapped.missile, ability: tapped.ability };
     tapped.missile = tapped.ability = false;
     return c;
   };

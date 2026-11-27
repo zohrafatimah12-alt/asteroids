@@ -142,7 +142,8 @@ export class Sim {
     const p = this.player;
     // Direct movement: the arrow keys push the ship in screen directions, and it eases
     // toward that velocity so motion stays smooth while a key is held.
-    const mx = clamp(c.move?.x ?? 0, -1, 1), my = clamp(c.move?.y ?? 0, -1, 1);
+    let mx = clamp(c.move?.x ?? 0, -1, 1), my = clamp(c.move?.y ?? 0, -1, 1);
+    if (c.thrust) { const f = heading(p.rotation); mx = clamp(mx + f.x, -1, 1); my = clamp(my + f.y, -1, 1); }  // Shift: push along the nose
     const len = Math.hypot(mx, my) || 1;
     const top = this.moveSpeed * (p.stun > 0 ? 0.3 : 1) * (p.boost > 0 ? 1.8 : 1);
     const target = new V(mx / len * top * (mx || my ? 1 : 0), my / len * top * (mx || my ? 1 : 0));
