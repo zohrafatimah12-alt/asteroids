@@ -10,9 +10,15 @@ const OPEN_SCREENS = ["menu", "new", "select", "login", "intro", "settings"];
 
 export async function api(path, body) {
   const base = window.NEBULA_API || "";  // set in config.js when the API is on another host
-  const res = await fetch(base + "/api" + path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let res;
+  try {
+    res = await fetch(base + "/api" + path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch (err) {
+    // Name the request so a failing connection can be traced in the browser's network log.
+    throw new Error(`no response from ${base || location.origin}/api${path} (${err.message})`);
+  }
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(typeof json.detail === "string" ? json.detail : "Request failed");
+  if (!res.ok) throw new Error(typeof json.detail === "string" ? json.detail : `request failed with status ${res.status} for ${path}`);
   return json;
 }
 export function setGame(game) {
